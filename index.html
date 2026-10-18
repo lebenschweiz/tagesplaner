@@ -142,6 +142,20 @@
       </section>
 
       <section class="sheet" aria-label="Termine und Zeitplan">
+        <details class="gmail" id="gmailBox">
+          <summary><span class="label">Gmail</span><span class="sub" id="gmailCount"></span></summary>
+          <div class="gmail-body">
+            <div class="gmail-bar">
+              <div class="moods" id="gmailFilters" role="group" aria-label="Mails filtern"></div>
+              <button class="btn small" id="gmailRefresh" hidden>Aktualisieren</button>
+            </div>
+            <div id="gmailState" class="gmail-state">
+              <p class="sub" id="gmailMsg">Hole deine Mails in den Planer und mach aus einer Mail mit einem Tipp ein To-do oder einen Zeitblock. Nur Lesen – Mails werden nicht gespeichert.</p>
+              <button class="btn primary" id="gmailConnect">Gmail verbinden</button>
+            </div>
+            <ul class="mails" id="mails"></ul>
+          </div>
+        </details>
         <div class="notes">
           <label class="label" for="appts">Termine &amp; Notizen</label>
           <textarea id="appts" data-k="appts" rows="3" placeholder="z. B. 10:00 Zahnarzt · Paket abholen"></textarea>

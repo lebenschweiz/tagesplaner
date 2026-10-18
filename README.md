@@ -24,6 +24,11 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - **Vorlagen**: Einen Zeitplan als Vorlage speichern (z. B. „Arbeitstag“) und an anderen Tagen einfügen.
 - Jede dieser Aktionen lässt sich mit „Rückgängig“ zurücknehmen.
 
+**Gmail** (nach Google-Anmeldung)
+- Mails direkt im Tagesplaner: Ungelesen, Markiert, Heute, Wichtig
+- „+ To-do“ übernimmt den Betreff in die To-dos, „+ Zeitplan“ setzt ihn in den nächsten freien Zeitblock (ab jetzt oder ab der markierten Zeile)
+- Nur Lesezugriff. Mails werden nicht gespeichert – nur was du selbst übernimmst. Die Verbindung gilt jeweils ca. 1 Stunde, danach „Neu verbinden“.
+
 **Woche**
 - Gewohnheits-Tracker (6 Gewohnheiten × 7 Tage), Namen werden in die nächste Woche übernommen
 - Wochen-Fokus: Ziel 1 und Ziel 2 mit je 3 Schritten
@@ -53,6 +58,19 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 
 Die Firebase-Werte sind nicht geheim; geschützt werden die Daten durch die Regeln aus Schritt 5. Der kostenlose Spark-Tarif reicht für den persönlichen Gebrauch bei Weitem.
 
+## Gmail einrichten (einmalig, nach der Google-Anmeldung)
+
+Firebase legt im Hintergrund ein Google-Cloud-Projekt mit demselben Namen an. Dort:
+
+1. <https://console.cloud.google.com/apis/library/gmail.googleapis.com> öffnen, oben dein Firebase-Projekt wählen → **Aktivieren**.
+2. **APIs & Dienste → OAuth-Zustimmungsbildschirm** (heißt teils „Google Auth Platform“):
+   - Zielgruppe: **Extern**, Status **Test** lassen.
+   - **Testnutzer:** deine Gmail-Adresse hinzufügen.
+   - **Datenzugriff → Bereiche hinzufügen:** `https://www.googleapis.com/auth/gmail.readonly`.
+3. In der App im Gmail-Feld **„Gmail verbinden“** tippen. Google zeigt „Diese App wurde nicht von Google überprüft“ → **Weiter** (es ist deine eigene App) → Lesezugriff erlauben.
+
+Solange die App im Status „Test“ ist, können nur die eingetragenen Testnutzer Gmail verbinden – genau richtig für den persönlichen Gebrauch.
+
 ## Lokal ausprobieren
 
 ```bash
@@ -68,6 +86,7 @@ Für die Google-Anmeldung lokal zusätzlich `localhost` als autorisierte Domain 
 - `css/style.css` – Gestaltung (hell/dunkel automatisch)
 - `js/app.js` – Tag, Woche, Kopieren/Ausfüllen, Übersicht
 - `js/autocomplete.js` – Excel-artige Vorschläge
+- `js/gmail.js` – Gmail lesen (Liste, Betreff, Absender)
 - `js/store.js` – Speicher (Firestore oder localStorage)
 - `js/firebase-config.js` – deine Firebase-Konfiguration
 - `firestore.rules` – Zugriffsregeln für die Datenbank

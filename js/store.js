@@ -110,3 +110,31 @@ export function useLocal() {
   localStorage.setItem("tagesplaner:mode", "local");
   return localStore();
 }
+
+/* ---------- Gmail-Zugriff (nur Lesen) ---------- */
+// Firebase gibt beim Google-Login ein Zugriffstoken für die Gmail-API zurück.
+// Es gilt ca. 1 Stunde; danach einmal "Neu verbinden". Es wird nur in diesem Tab gehalten.
+export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+const TOKEN_KEY = "tagesplaner:gmailToken";
+
+export function cachedGmailToken() {
+  try {
+    const t = JSON.parse(sessionStorage.getItem(TOKEN_KEY) || "null");
+    return t && t.exp > Date.now() ? t.token : null;
+  } catch { return null; }
+}
+export function forgetGmailToken() { try { sessionStorage.removeItem(TOKEN_KEY); } catch {} }
+
+export async function connectGmail() {
+  const f = await loadFirebase();
+  const user = f.auth.currentUser;
+  if (!user) throw Object.assign(new Error("Nicht angemeldet"), { code: "no-user" });
+  const provider = new f.authMod.GoogleAuthProvider();
+  provider.addScope(GMAIL_SCOPE);
+  provider.setCustomParameters({ login_hint: user.email || "" });
+  const res = await f.authMod.reauthenticateWithPopup(user, provider);
+  const cred = f.authMod.GoogleAuthProvider.credentialFromResult(res);
+  if (!cred || !cred.accessToken) throw Object.assign(new Error("Kein Zugriff erhalten"), { code: "no-token" });
+  try { sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ token: cred.accessToken, exp: Date.now() + 55 * 60 * 1000 })); } catch {}
+  return cred.accessToken;
+}

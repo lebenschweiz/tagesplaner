@@ -1,4 +1,5 @@
-import { watchAuth, signInWithGoogle, useLocal, cloudAvailable } from "./store.js";
+import { watchAuth, signInWithGoogle, useLocal, cloudAvailable, connectGmail, cachedGmailToken, forgetGmailToken } from "./store.js";
+import { listMessages, FILTERS } from "./gmail.js";
 import { createAutocomplete } from "./autocomplete.js";
 
 /* ================= Grundlagen ================= */
@@ -711,6 +712,110 @@ $("importFile").addEventListener("change", async e => {
 });
 $("logoutBtn").onclick = async () => { await flushAll(); await store.signOut(); location.reload(); };
 
+/* ================= Gmail ================= */
+let gmailFilter = "unread", gmailTaken = new Set(), gmailLoading = false;
+try { gmailFilter = localStorage.getItem("tagesplaner:gmailFilter") || "unread"; } catch {}
+$("gmailFilters").innerHTML = Object.entries(FILTERS).map(([k, f]) => `<button type="button" data-gf="${k}" aria-pressed="false">${f.label}</button>`).join("");
+try { $("gmailBox").open = localStorage.getItem("tagesplaner:gmailOpen") !== "0"; } catch { $("gmailBox").open = true; }
+$("gmailBox").addEventListener("toggle", () => { try { localStorage.setItem("tagesplaner:gmailOpen", $("gmailBox").open ? "1" : "0"); } catch {} });
+
+function gmailState(msg, showConnect, connectLabel = "Gmail verbinden") {
+  $("gmailState").hidden = !msg;
+  $("gmailMsg").textContent = msg || "";
+  $("gmailConnect").hidden = !showConnect;
+  $("gmailConnect").textContent = connectLabel;
+}
+function paintGmailFilters() {
+  $("gmailFilters").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.gf === gmailFilter)));
+}
+async function loadGmail() {
+  paintGmailFilters();
+  const token = cachedGmailToken();
+  $("gmailRefresh").hidden = !token;
+  if (!token) {
+    $("mails").replaceChildren(); $("gmailCount").textContent = "";
+    if (store.mode !== "cloud") return gmailState("Gmail braucht die Google-Anmeldung. Melde dich ab und mit Google wieder an.", false);
+    return gmailState("Hole deine Mails in den Planer und mach aus einer Mail mit einem Tipp ein To-do oder einen Zeitblock. Nur Lesen – Mails werden nicht gespeichert.", true);
+  }
+  if (gmailLoading) return;
+  gmailLoading = true;
+  gmailState("Lädt Mails …", false);
+  try {
+    const mails = await listMessages(token, FILTERS[gmailFilter].q);
+    renderMails(mails);
+    gmailState(mails.length ? "" : `Keine Mails unter „${FILTERS[gmailFilter].label}“.`, false);
+  } catch (e) {
+    $("mails").replaceChildren();
+    if (e.code === "expired") { forgetGmailToken(); gmailState("Die Verbindung ist nach einer Stunde abgelaufen.", true, "Neu verbinden"); }
+    else if (e.code === "forbidden") gmailState("Google erlaubt den Zugriff noch nicht: " + e.message + " – siehe README, Abschnitt Gmail.", true, "Erneut versuchen");
+    else gmailState("Mails konnten nicht geladen werden: " + e.message, true, "Erneut versuchen");
+  } finally { gmailLoading = false; }
+}
+function renderMails(mails) {
+  $("gmailCount").textContent = `${mails.length}${mails.length >= 15 ? "+" : ""} ${FILTERS[gmailFilter].label.toLowerCase()}`;
+  const fmt = d => d.toDateString() === new Date().toDateString()
+    ? d.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleDateString("de-CH", { day: "numeric", month: "short" });
+  const email = store.user.email || "";
+  $("mails").replaceChildren(...mails.map(m => {
+    const li = document.createElement("li");
+    li.className = "mail" + (m.unread ? " unread" : "");
+    li.innerHTML = `<div class="who"><span></span><span>${fmt(m.date)}</span>${m.starred ? "<span>★</span>" : ""}</div>` +
+      `<div class="subj"></div><div class="snip"></div>` +
+      `<div class="acts"><button class="btn" data-mail="todo">+ To-do</button><button class="btn" data-mail="slot">+ Zeitplan</button>` +
+      `<a class="btn" target="_blank" rel="noopener" href="https://mail.google.com/mail/?authuser=${encodeURIComponent(email)}#all/${m.threadId}">Öffnen</a></div>`;
+    li.querySelector(".who span").textContent = m.from;
+    li.querySelector(".subj").textContent = m.subject;
+    li.querySelector(".snip").textContent = m.snippet;
+    li.dataset.subject = m.subject; li.dataset.id = m.id;
+    if (gmailTaken.has(m.id + ":todo")) markTaken(li.querySelector('[data-mail="todo"]'));
+    if (gmailTaken.has(m.id + ":slot")) markTaken(li.querySelector('[data-mail="slot"]'));
+    return li;
+  }));
+}
+function markTaken(b) { b.classList.add("done"); b.textContent = "✓ " + b.textContent.replace(/^\+ /, ""); }
+$("gmailFilters").addEventListener("click", e => {
+  const b = e.target.closest("[data-gf]"); if (!b) return;
+  gmailFilter = b.dataset.gf;
+  try { localStorage.setItem("tagesplaner:gmailFilter", gmailFilter); } catch {}
+  loadGmail();
+});
+$("gmailRefresh").onclick = loadGmail;
+$("gmailConnect").onclick = async () => {
+  if (cachedGmailToken()) return loadGmail();
+  gmailState("Bestätige den Zugriff im Google-Fenster …", false);
+  try { await connectGmail(); loadGmail(); }
+  catch (e) {
+    console.error(e);
+    gmailState(e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request" ? "Abgebrochen." : "Verbinden fehlgeschlagen: " + (e.message || e.code), true);
+  }
+};
+$("mails").addEventListener("click", e => {
+  const b = e.target.closest("[data-mail]"); if (!b || b.classList.contains("done")) return;
+  const li = b.closest(".mail"), text = "✉ " + li.dataset.subject;
+  snapshotForUndo();
+  if (b.dataset.mail === "todo") {
+    let slot = day.more.find(x => !x.t.trim());
+    if (!slot) { slot = { t: "", d: false }; day.more.push(slot); }
+    slot.t = text; slot.d = false;
+    toast("Als To-do übernommen");
+  } else {
+    // Ab markierter Zeile, sonst ab jetzt (heute) bzw. 08:00: erster freier Plan-Block
+    const now = new Date(), nm = now.getHours() * 60 + now.getMinutes();
+    let start = selRange() ? selRange()[0]
+      : current === todayIso() ? Math.max(0, TIMES.findIndex(t => { const [h, m] = t.split(":").map(Number); return h * 60 + m + 15 > nm; }))
+      : TIMES.indexOf("08:00");
+    if (start < 0) start = TIMES.length - 1;
+    const i = rows.findIndex((r, k) => k >= start && !r.querySelector(".p").value.trim());
+    if (i < 0) { undoState = null; return toast("Kein freier Zeitblock mehr ab dieser Zeit.", false); }
+    rows[i].querySelector(".p").value = text; slotFromRow(rows[i]);
+    rows[i].scrollIntoView({ block: "nearest", behavior: "smooth" });
+    toast(`Um ${TIMES[i]} eingeplant`);
+  }
+  gmailTaken.add(li.dataset.id + ":" + b.dataset.mail); markTaken(b);
+  renderDay(); queueSave("day");
+});
+
 /* ================= Start ================= */
 async function loadMeta() {
   const [v, s] = await Promise.all([store.get("meta", "vocab"), store.get("meta", "settings")]);
@@ -741,6 +846,7 @@ async function start(s) {
   let v = "day"; try { v = localStorage.getItem("tagesplaner:view") || "day"; } catch {}
   await loadDate(todayIso());
   setView(v);
+  loadGmail();
 }
 
 function showLogin(msg) {
