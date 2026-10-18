@@ -1,0 +1,758 @@
+import { watchAuth, signInWithGoogle, useLocal, cloudAvailable } from "./store.js";
+import { createAutocomplete } from "./autocomplete.js";
+
+/* ================= Grundlagen ================= */
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, "0");
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parse = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+const weekday = s => (parse(s).getDay() + 6) % 7;            // 0 = Montag
+const mondayOf = s => addDays(s, -weekday(s));
+const todayIso = () => iso(new Date());
+const clone = o => JSON.parse(JSON.stringify(o));
+function isoWeek(s) {
+  const d = parse(s); d.setDate(d.getDate() + 3 - weekday(s));
+  const jan4 = new Date(d.getFullYear(), 0, 4);
+  return 1 + Math.round(((d - jan4) / 864e5 - 3 + ((jan4.getDay() + 6) % 7)) / 7);
+}
+
+const DAY_LETTERS = ["M", "D", "M", "D", "F", "S", "S"];
+const DAY_NAMES = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+const DAY_SHORT = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+const QUOTES = [
+  ["Ich betrachte jeden Misserfolg als eine Stufe zum Erfolg.", "Inayat Khan"],
+  ["Wer immer tut, was er schon kann, bleibt immer das, was er schon ist.", "Henry Ford"],
+  ["Es ist nicht wenig Zeit, die wir haben, sondern es ist viel Zeit, die wir nicht nutzen.", "Seneca"],
+  ["Auch aus Steinen, die einem in den Weg gelegt werden, kann man Schönes bauen.", "Johann Wolfgang von Goethe"],
+  ["Der beste Weg, die Zukunft vorauszusagen, ist, sie zu gestalten.", "Willy Brandt"],
+  ["Wir sind, was wir wiederholt tun.", "Will Durant"],
+  ["Ruhe ist die Mutter des Erfolgs.", "Sprichwort"]
+];
+const TIMES = [];
+for (let m = 5 * 60 + 15; m <= 20 * 60 + 15; m += 15) TIMES.push(`${pad(Math.floor(m / 60))}:${pad(m % 60)}`);
+const HABIT_ROWS = 6;
+const MOODS = ["glücklich", "begeistert", "hoffnungsvoll", "liebevoll", "entspannt", "dankbar", "müde", "traurig", "gestresst", "überfordert"];
+const WATER_GLASSES = 8;
+
+/* ================= Datenmodell ================= */
+const list = n => Array.from({ length: n }, () => ({ t: "", d: false }));
+function blankDay(date) {
+  return { date, grateful: ["", ""], forward: ["", ""], focus: { text: "", done: false },
+    cream: list(2), cherries: list(4), more: list(3), habit: false, relax: list(2), appts: "", ideas: "", slots: {},
+    affirm: ["", ""], moods: [], moodOther: "", weight: "", fitness: list(5),
+    meals: { breakfast: "", lunch: "", dinner: "", snack: "" }, water: 0, selfRating: null, reflection: "" };
+}
+function normDay(x, date) {
+  const b = blankDay(date);
+  if (!x || typeof x !== "object") return b;
+  const out = Object.assign(b, x, { date });
+  ["cream", "cherries", "relax", "fitness"].forEach(k => { out[k] = blankDay(date)[k].map((v, i) => Object.assign(v, (x[k] || [])[i] || {})); });
+  out.more = Array.isArray(x.more) ? x.more.map(v => Object.assign({ t: "", d: false }, v)) : list(3);
+  while (out.more.length < 3) out.more.push({ t: "", d: false });
+  out.meals = Object.assign(blankDay(date).meals, x.meals || {});
+  out.moods = Array.isArray(x.moods) ? x.moods : [];
+  ["grateful", "forward", "affirm"].forEach(k => { out[k] = [0, 1].map(i => (x[k] || [])[i] || ""); });
+  out.focus = Object.assign({ text: "", done: false }, x.focus || {});
+  out.slots = x.slots && typeof x.slots === "object" ? x.slots : {};
+  return out;
+}
+function blankWeek(monday) {
+  return { monday,
+    habits: Array.from({ length: HABIT_ROWS }, () => ({ name: "", days: [false, false, false, false, false, false, false] })),
+    goals: [0, 1].map(() => ({ text: "", steps: list(3) })),
+    meaning: null, meaningNotes: "", wins: "" };
+}
+function normWeek(x, monday) {
+  const b = blankWeek(monday);
+  if (!x || typeof x !== "object") return b;
+  const out = Object.assign(b, x, { monday });
+  out.habits = blankWeek(monday).habits.map((h, i) => {
+    const s = (x.habits || [])[i] || {};
+    return { name: s.name || "", days: h.days.map((_, j) => !!(s.days || [])[j]) };
+  });
+  out.goals = blankWeek(monday).goals.map((g, i) => {
+    const s = (x.goals || [])[i] || {};
+    return { text: s.text || "", steps: g.steps.map((st, j) => Object.assign(st, (s.steps || [])[j] || {})) };
+  });
+  return out;
+}
+const dayHasContent = d => !!d && (Object.keys(d.slots || {}).length || d.focus?.text || [...(d.cream || []), ...(d.cherries || [])].some(x => x.t));
+
+/* ================= Zustand ================= */
+let store = null;
+let view = "day";
+let current = todayIso();
+let day = blankDay(current);
+let week = blankWeek(mondayOf(current));
+let meta = { vocab: null, templates: {}, habitNames: [] };
+let rendering = false;
+const timers = {};
+const dirty = new Set();
+const ac = createAutocomplete({ onChange: v => { meta.vocab = v; queueSave("meta"); } });
+
+/* ================= Speichern ================= */
+function setStatus(t, err) { const s = $("status"); s.textContent = t; s.classList.toggle("err", !!err); }
+function queueSave(what) {
+  dirty.add(what);
+  setStatus("Änderungen …");
+  clearTimeout(timers[what]);
+  timers[what] = setTimeout(() => flush(what), 700);
+}
+async function flush(what) {
+  clearTimeout(timers[what]);
+  if (!dirty.has(what) || !store) return;
+  dirty.delete(what);
+  try {
+    if (what === "day") { const d = clone(day); d.updatedAt = new Date().toISOString(); await store.set("days", d.date, d); }
+    if (what === "week") { const w = clone(week); w.updatedAt = new Date().toISOString(); await store.set("weeks", w.monday, w); }
+    if (what === "meta") {
+      await store.set("meta", "vocab", meta.vocab || {});
+      await store.set("meta", "settings", { templates: meta.templates, habitNames: meta.habitNames });
+    }
+    if (!dirty.size) setStatus("Gespeichert " + new Date().toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" }));
+  } catch (e) {
+    console.error(e);
+    dirty.add(what);
+    setStatus("Speichern fehlgeschlagen – wird erneut versucht", true);
+    timers[what] = setTimeout(() => flush(what), 5000);
+  }
+}
+const flushAll = () => Promise.all(["day", "week", "meta"].map(flush));
+window.addEventListener("pagehide", () => { if (dirty.size) flushAll(); });
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) flushAll();
+  else if (store && !dirty.size) loadDate(current, true);
+});
+
+/* ================= Rückgängig ================= */
+let undoState = null, toastTimer = null;
+function snapshotForUndo(label) { undoState = { day: clone(day), week: clone(week), label }; }
+function toast(text, undoable = true) {
+  $("toastText").textContent = text;
+  $("toastUndo").hidden = !undoable || !undoState;
+  $("toast").hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { $("toast").hidden = true; }, 6000);
+}
+$("toastUndo").onclick = () => {
+  if (!undoState) return;
+  if (undoState.day.date === day.date) { day = undoState.day; queueSave("day"); }
+  if (undoState.week.monday === week.monday) { week = undoState.week; queueSave("week"); }
+  undoState = null; $("toast").hidden = true;
+  renderAll();
+};
+
+/* ================= Aufbau Tagesansicht ================= */
+function itemRow(key, i, ph, group) {
+  const row = document.createElement("div"); row.className = "item";
+  row.innerHTML = `<input type="checkbox" class="check" id="${key}${i}c" data-k="${key}.${i}.d" aria-label="Erledigt">` +
+    `<input type="text" id="${key}${i}t" data-k="${key}.${i}.t" data-ac="${group}" list="ac-${group}" autocomplete="off" placeholder="${ph}">`;
+  return row;
+}
+function buildList(id, key, n, ph, group = "todo") {
+  const host = $(id);
+  for (let i = 0; i < n; i++) {
+    const row = document.createElement("div"); row.className = "item";
+    row.innerHTML = `<input type="checkbox" class="check" id="${key}${i}c" data-k="${key}.${i}.d" aria-label="Erledigt">` +
+      `<input type="text" id="${key}${i}t" data-k="${key}.${i}.t" data-ac="todo" placeholder="${ph}">`;
+    host.appendChild(row);
+  }
+}
+buildList("cream", "cream", 2, "Wichtig heute");
+buildList("cherries", "cherries", 4, "Wäre schön");
+buildList("relax", "relax", 2, "Was mir guttut");
+buildList("fitness", "fitness", 5, "z. B. 30 Min. Laufen", "fit");
+function renderMore() {
+  const host = $("more");
+  if (host.children.length === day.more.length) return;
+  host.replaceChildren(...day.more.map((_, i) => itemRow("more", i, i ? "" : "Alles Weitere", "todo")));
+}
+$("addMore").onclick = () => {
+  day.more.push({ t: "", d: false }); renderDay(); queueSave("day");
+  $("more").lastElementChild.querySelector("input[type=text]").focus();
+};
+$("moods").innerHTML = MOODS.map(m => `<button type="button" aria-pressed="false" data-mood="${m}">${m}</button>`).join("");
+$("water").innerHTML = Array.from({ length: WATER_GLASSES }, (_, i) => `<button type="button" data-water="${i + 1}" aria-label="${i + 1} Glas"></button>`).join("");
+$("dayScale").innerHTML = Array.from({ length: 10 }, (_, i) => `<button type="button" role="radio" aria-checked="false" data-rate="${i + 1}">${i + 1}</button>`).join("");
+$("dayView").addEventListener("click", e => {
+  const m = e.target.closest("[data-mood]"), w = e.target.closest("[data-water]"), r = e.target.closest("[data-rate]");
+  if (!m && !w && !r) return;
+  if (m) { const v = m.dataset.mood; day.moods = day.moods.includes(v) ? day.moods.filter(x => x !== v) : [...day.moods, v]; }
+  if (w) { const n = +w.dataset.water; day.water = day.water === n ? n - 1 : n; }
+  if (r) { const n = +r.dataset.rate; day.selfRating = day.selfRating === n ? null : n; }
+  paintReflection(); queueSave("day");
+});
+function paintReflection() {
+  $("moods").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(day.moods.includes(b.dataset.mood))));
+  $("water").querySelectorAll("button").forEach(b => b.classList.toggle("on", +b.dataset.water <= day.water));
+  $("waterInfo").textContent = `${day.water} / ${WATER_GLASSES} · ${(day.water * 0.25).toLocaleString("de-CH")} l`;
+  $("dayScale").querySelectorAll("button").forEach(b => b.setAttribute("aria-checked", String(+b.dataset.rate === day.selfRating)));
+}
+
+const slotsHost = $("slots");
+const rows = TIMES.map(t => {
+  const r = document.createElement("div");
+  r.className = "slot" + (t.endsWith(":00") ? " hour" : "");
+  r.dataset.t = t; r.setAttribute("role", "row");
+  const id = t.replace(":", "");
+  r.innerHTML = `<div class="t" role="cell">${t}</div>` +
+    `<input type="text" class="p" id="p${id}" data-ac="slot" aria-label="Geplant ${t}">` +
+    `<input type="text" class="d" id="d${id}" data-ac="slot" aria-label="Gemacht ${t}">` +
+    `<button class="cp" title="Wie geplant erledigt" aria-label="Plan um ${t} als gemacht übernehmen">✓</button>`;
+  slotsHost.insertBefore(r, $("fillHandle"));
+  return r;
+});
+$("weekLetters").innerHTML = DAY_LETTERS.map(d => `<span>${d}</span>`).join("");
+document.querySelectorAll("[data-ac]").forEach(el => { el.setAttribute("list", "ac-" + el.dataset.ac); el.autocomplete = "off"; });
+
+/* ================= Render Tag ================= */
+const getPath = (o, p) => p.split(".").reduce((a, k) => a == null ? a : a[k], o);
+function setPath(o, p, v) { const ks = p.split("."); let a = o; ks.slice(0, -1).forEach(k => a = a[k]); a[ks.at(-1)] = v; }
+
+function renderDay() {
+  rendering = true;
+  renderMore();
+  document.querySelectorAll("#dayView [data-k]").forEach(el => {
+    const v = getPath(day, el.dataset.k);
+    if (el.type === "checkbox") el.checked = !!v; else el.value = v || "";
+  });
+  rows.forEach(r => {
+    const s = day.slots[r.dataset.t] || {};
+    r.querySelector(".p").value = s.p || ""; r.querySelector(".d").value = s.d || "";
+  });
+  const d = parse(current), wd = weekday(current);
+  $("longDate").textContent = d.toLocaleDateString("de-CH", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  [...$("weekLetters").children].forEach((s, i) => s.classList.toggle("on", i === wd));
+  $("copyWeekdayBtn").textContent = `Zeitplan vom letzten ${DAY_NAMES[wd]}`;
+  const q = QUOTES[Math.floor(d.getTime() / 864e5) % QUOTES.length];
+  const qq = document.createElement("q"); qq.textContent = q[0];
+  const sm = document.createElement("small"); sm.textContent = q[1];
+  $("quote").replaceChildren(qq, sm);
+
+  // Gewohnheiten des Tages aus der Woche
+  const host = $("habitsToday"); host.replaceChildren();
+  week.habits.forEach((h, i) => {
+    if (!h.name.trim()) return;
+    const l = document.createElement("label");
+    l.innerHTML = `<input type="checkbox" class="check" data-habit="${i}">`;
+    l.firstChild.checked = h.days[wd];
+    l.append(document.createTextNode(h.name));
+    host.appendChild(l);
+  });
+  const goals = week.goals.map(g => g.text.trim()).filter(Boolean);
+  $("weekGoalsHint").textContent = goals.length ? "Wochenziele: " + goals.join(" · ") : "";
+  paintReflection();
+  rendering = false;
+  decorateDay();
+}
+
+function decorateDay() {
+  const t = todayIso(), isToday = current === t, past = current < t;
+  const nowD = new Date(), nm = nowD.getHours() * 60 + nowD.getMinutes();
+  let planned = 0, met = 0, tracked = 0;
+  rows.forEach(r => {
+    const [h, m] = r.dataset.t.split(":").map(Number), sm = h * 60 + m;
+    const p = r.querySelector(".p").value.trim(), d = r.querySelector(".d").value.trim();
+    if (p) planned++; if (d) tracked++; if (p && d) met++;
+    r.classList.toggle("met", !!d);
+    r.classList.toggle("missed", !!p && !d && (past || (isToday && sm + 15 <= nm)));
+    r.classList.toggle("now", isToday && nm >= sm && nm < sm + 15);
+  });
+  $("focusBox").classList.toggle("done", !!day.focus.done);
+  document.querySelectorAll("#dayView .item").forEach(it => it.classList.toggle("done", it.querySelector(".check").checked));
+  const tasks = [...day.cream, ...day.cherries, ...day.more].filter(x => x.t.trim());
+  const tasksDone = tasks.filter(x => x.d).length;
+  const hrs = (tracked * 15 / 60).toLocaleString("de-CH", { maximumFractionDigits: 2 });
+  $("stats").innerHTML =
+    `<span class="chip${day.focus.done ? " good" : ""}">Fokus <b>${day.focus.done ? "erledigt" : (day.focus.text.trim() ? "offen" : "–")}</b></span>` +
+    `<span class="chip${tasks.length && tasksDone === tasks.length ? " good" : ""}">To-dos <b>${tasksDone} / ${tasks.length}</b></span>` +
+    `<span class="chip">Plan umgesetzt <b>${met} / ${planned}</b></span>` +
+    `<span class="chip">Getrackt <b>${hrs} h</b></span>`;
+  positionHandle();
+}
+setInterval(() => { if (view === "day") decorateDay(); }, 60000);
+
+/* ================= Eingaben Tag ================= */
+function slotFromRow(r) {
+  const t = r.dataset.t, p = r.querySelector(".p").value, d = r.querySelector(".d").value;
+  if (p || d) day.slots[t] = { p, d }; else delete day.slots[t];
+}
+$("dayView").addEventListener("input", e => {
+  if (rendering) return;
+  const el = e.target;
+  if (el.dataset.k) setPath(day, el.dataset.k, el.type === "checkbox" ? el.checked : el.value);
+  else if (el.dataset.habit != null) {
+    week.habits[+el.dataset.habit].days[weekday(current)] = el.checked;
+    queueSave("week"); return;
+  } else if (el.closest(".slot")) slotFromRow(el.closest(".slot"));
+  else return;
+  decorateDay(); queueSave("day");
+});
+slotsHost.addEventListener("click", e => {
+  const b = e.target.closest(".cp"); if (!b) return;
+  const r = b.closest(".slot"), p = r.querySelector(".p"), d = r.querySelector(".d");
+  if (!p.value.trim()) { d.focus(); return; }
+  d.value = p.value; slotFromRow(r); ac.learn("slot", p.value); decorateDay(); queueSave("day");
+});
+// Enter / Pfeile: nächste Zeile derselben Spalte (wie Excel)
+slotsHost.addEventListener("keydown", e => {
+  const inp = e.target; if (inp.tagName !== "INPUT") return;
+  const r = inp.closest(".slot"); const col = inp.classList.contains("p") ? ".p" : ".d";
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") { e.preventDefault(); fillDown(col); return; }
+  if (e.key !== "Enter" && e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+  if (e.key === "Enter" && inp.selectionStart !== inp.selectionEnd) inp.setSelectionRange(inp.value.length, inp.value.length);
+  inp.dispatchEvent(new Event("change", { bubbles: true }));
+  const up = e.key === "ArrowUp" || (e.key === "Enter" && e.shiftKey);
+  const nx = up ? r.previousElementSibling : r.nextElementSibling;
+  if (nx && nx.classList.contains("slot")) { e.preventDefault(); nx.querySelector(col).focus(); }
+});
+// Mehrzeiliges Einfügen (z. B. aus Excel: Zeilen untereinander, Tab trennt Geplant/Gemacht)
+slotsHost.addEventListener("paste", e => {
+  const inp = e.target; if (inp.tagName !== "INPUT") return;
+  const text = (e.clipboardData || window.clipboardData).getData("text");
+  if (!/[\n\t]/.test(text.trim())) return;
+  e.preventDefault();
+  pasteRows(text, rows.indexOf(inp.closest(".slot")), inp.classList.contains("p") ? 0 : 1);
+});
+function pasteRows(text, startIdx, startCol) {
+  snapshotForUndo();
+  const lines = text.replace(/\r/g, "").replace(/\n$/, "").split("\n");
+  lines.forEach((line, i) => {
+    const r = rows[startIdx + i]; if (!r) return;
+    line.split("\t").slice(0, 2 - startCol).forEach((cell, j) => {
+      r.querySelector(startCol + j === 0 ? ".p" : ".d").value = cell.trim();
+    });
+    slotFromRow(r);
+  });
+  decorateDay(); queueSave("day");
+  toast(`${Math.min(lines.length, rows.length - startIdx)} Zeilen eingefügt`);
+}
+
+/* ================= Markieren & Ausfüllen (Excel-Gefühl) ================= */
+let selA = null, selB = null, dragSel = false;
+const selRange = () => selA == null ? null : [Math.min(selA, selB), Math.max(selA, selB)];
+function paintSel() {
+  const r = selRange();
+  rows.forEach((row, i) => row.classList.toggle("sel", !!r && i >= r[0] && i <= r[1]));
+  $("selbar").hidden = !r;
+  if (r) $("selInfo").textContent = `${TIMES[r[0]]} – ${endTime(r[1])} · ${r[1] - r[0] + 1} Zeilen`;
+}
+function endTime(i) { const [h, m] = TIMES[i].split(":").map(Number); const x = h * 60 + m + 15; return `${pad(Math.floor(x / 60))}:${pad(x % 60)}`; }
+function clearSel() { selA = selB = null; paintSel(); }
+
+slotsHost.addEventListener("pointerdown", e => {
+  const t = e.target.closest(".t"); if (!t) return;
+  e.preventDefault();
+  const i = rows.indexOf(t.parentElement);
+  if (e.shiftKey && selA != null) selB = i;
+  else if (selA != null && selA === selB && e.pointerType !== "mouse" && i !== selA) selB = i; // Touch: zweites Antippen erweitert
+  else if (selA === i && selB === i) { clearSel(); return; }
+  else { selA = selB = i; }
+  dragSel = true; t.setPointerCapture?.(e.pointerId);
+  paintSel();
+});
+slotsHost.addEventListener("pointermove", e => {
+  if (!dragSel) return;
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const r = el && el.closest(".slot");
+  if (r) { const i = rows.indexOf(r); if (i !== selB) { selB = i; paintSel(); } }
+});
+window.addEventListener("pointerup", () => { dragSel = false; });
+document.addEventListener("keydown", e => { if (e.key === "Escape") clearSel(); });
+
+function selectedOrFocusCol(fallback = ".p") {
+  const a = document.activeElement;
+  return a && a.closest && a.closest(".slot") && a.classList.contains("d") ? ".d" : fallback;
+}
+function fillDown(col) {
+  const r = selRange(); if (!r || r[0] === r[1]) return;
+  snapshotForUndo();
+  const v = rows[r[0]].querySelector(col).value;
+  for (let i = r[0] + 1; i <= r[1]; i++) { rows[i].querySelector(col).value = v; slotFromRow(rows[i]); }
+  decorateDay(); queueSave("day"); toast(`„${v || "leer"}“ in ${r[1] - r[0]} Zeilen ausgefüllt`);
+}
+let clip = null;
+$("selbar").addEventListener("click", async e => {
+  const b = e.target.closest("[data-sel]"); if (!b) return;
+  const r = selRange(); if (!r && b.dataset.sel !== "close") return;
+  const act = b.dataset.sel;
+  if (act === "close") return clearSel();
+  if (act === "fillPlan") {
+    // Ersten nicht-leeren Plan der Auswahl auf alle Zeilen übertragen
+    const src = rows.slice(r[0], r[1] + 1).map(x => x.querySelector(".p").value).find(v => v.trim()) || "";
+    if (!src) return toast("Trage zuerst in der ersten Zeile etwas ein.", false);
+    snapshotForUndo();
+    for (let i = r[0]; i <= r[1]; i++) { rows[i].querySelector(".p").value = src; slotFromRow(rows[i]); }
+    toast(`Plan „${src}“ ausgefüllt`);
+  }
+  if (act === "planToDone") {
+    snapshotForUndo();
+    for (let i = r[0]; i <= r[1]; i++) { const p = rows[i].querySelector(".p").value; if (p) { rows[i].querySelector(".d").value = p; slotFromRow(rows[i]); } }
+    toast("Plan als gemacht übernommen");
+  }
+  if (act === "copy") {
+    clip = rows.slice(r[0], r[1] + 1).map(x => [x.querySelector(".p").value, x.querySelector(".d").value]);
+    const text = clip.map(c => c.join("\t")).join("\n");
+    try { await navigator.clipboard.writeText(text); } catch {}
+    toast(`${clip.length} Zeilen kopiert – Zielzeit markieren und „Einfügen“`, false);
+  }
+  if (act === "paste") {
+    if (!clip) { try { const t = await navigator.clipboard.readText(); if (t) return pasteRows(t, r[0], 0); } catch {} return toast("Nichts zum Einfügen kopiert.", false); }
+    return pasteRows(clip.map(c => c.join("\t")).join("\n"), r[0], 0);
+  }
+  if (act === "clear") {
+    snapshotForUndo();
+    for (let i = r[0]; i <= r[1]; i++) { rows[i].querySelector(".p").value = ""; rows[i].querySelector(".d").value = ""; slotFromRow(rows[i]); }
+    toast("Zeilen geleert");
+  }
+  decorateDay(); queueSave("day");
+});
+document.addEventListener("keydown", e => {
+  if (!(e.ctrlKey || e.metaKey) || selA == null || view !== "day") return;
+  const a = document.activeElement;
+  if (a && a.tagName === "INPUT" && a.selectionStart !== a.selectionEnd) return; // normale Textauswahl hat Vorrang
+  const k = e.key.toLowerCase();
+  if (k === "c" && selA !== selB) { e.preventDefault(); $("selbar").querySelector('[data-sel="copy"]').click(); }
+  if (k === "d" && !(a && a.closest && a.closest(".slot"))) { e.preventDefault(); fillDown(selectedOrFocusCol()); }
+});
+
+// Ausfüllkästchen am fokussierten Feld
+let fillFrom = null, fillTo = null, fillCol = null;
+function positionHandle() {
+  const a = document.activeElement, h = $("fillHandle");
+  if (!a || !a.closest || !a.closest(".slot") || a.tagName !== "INPUT" || fillFrom != null && fillTo == null) { if (fillFrom == null) h.hidden = true; return; }
+  const box = slotsHost.getBoundingClientRect(), r = a.getBoundingClientRect();
+  h.hidden = false;
+  h.style.left = (r.right - box.left - (h.offsetWidth || 12) / 2 - 2) + "px";
+  h.style.top = (r.bottom - box.top - (h.offsetHeight || 12) / 2 - 1) + "px";
+  h.dataset.row = rows.indexOf(a.closest(".slot")); h.dataset.col = a.classList.contains("p") ? ".p" : ".d";
+}
+slotsHost.addEventListener("focusin", positionHandle);
+slotsHost.addEventListener("focusout", () => setTimeout(() => { if (fillFrom == null && !slotsHost.contains(document.activeElement)) $("fillHandle").hidden = true; }, 150));
+window.addEventListener("resize", positionHandle);
+$("fillHandle").addEventListener("pointerdown", e => {
+  e.preventDefault();
+  fillFrom = +e.target.dataset.row; fillCol = e.target.dataset.col; fillTo = fillFrom;
+  e.target.setPointerCapture(e.pointerId);
+});
+$("fillHandle").addEventListener("pointermove", e => {
+  if (fillFrom == null) return;
+  const el = document.elementsFromPoint(e.clientX, e.clientY).find(x => x.classList && x.classList.contains("slot"));
+  if (!el) return;
+  fillTo = rows.indexOf(el);
+  const [a, b] = [Math.min(fillFrom, fillTo), Math.max(fillFrom, fillTo)];
+  rows.forEach((r, i) => {
+    r.classList.toggle("fillpreview", i >= a && i <= b);
+    r.querySelectorAll("input").forEach(x => x.classList.toggle("fillcol", x.matches(fillCol)));
+  });
+  const h = $("fillHandle"), box = slotsHost.getBoundingClientRect(), rr = el.querySelector(fillCol).getBoundingClientRect();
+  h.style.top = (rr.bottom - box.top - h.offsetHeight / 2 - 1) + "px";
+});
+$("fillHandle").addEventListener("pointerup", () => {
+  if (fillFrom == null) return;
+  const [a, b] = [Math.min(fillFrom, fillTo), Math.max(fillFrom, fillTo)];
+  rows.forEach(r => r.classList.remove("fillpreview"));
+  if (a !== b) {
+    snapshotForUndo();
+    const v = rows[fillFrom].querySelector(fillCol).value;
+    for (let i = a; i <= b; i++) { rows[i].querySelector(fillCol).value = v; slotFromRow(rows[i]); }
+    decorateDay(); queueSave("day");
+    toast(`„${v || "leer"}“ in ${b - a} Zeilen ausgefüllt`);
+  }
+  const src = rows[fillFrom].querySelector(fillCol);
+  fillFrom = fillTo = null;
+  src.focus(); positionHandle();
+});
+
+/* ================= Übernehmen / Kopieren ================= */
+async function getDay(date) { return normDay(await store.get("days", date), date); }
+async function findLastWeekday(date) {
+  for (let k = 1; k <= 8; k++) { const d = await getDay(addDays(date, -7 * k)); if (Object.keys(d.slots).some(t => d.slots[t].p)) return d; }
+  return null;
+}
+function applyPlan(src, field, label) {
+  if (!src) return toast("Kein passender Tag mit Zeitplan gefunden.", false);
+  snapshotForUndo();
+  let n = 0, skipped = 0;
+  Object.entries(src.slots).forEach(([t, s]) => {
+    const v = s[field]; if (!v || !TIMES.includes(t)) return;
+    const cur = day.slots[t] || { p: "", d: "" };
+    if (cur.p) { skipped++; return; }
+    day.slots[t] = { p: v, d: cur.d || "" }; n++;
+  });
+  renderDay(); queueSave("day");
+  toast(`${n} Zeitblöcke ${label} übernommen${skipped ? ` (${skipped} schon belegt, nicht überschrieben)` : ""}`);
+}
+$("dayView").querySelector(".copybar").addEventListener("click", async e => {
+  const b = e.target.closest("[data-copy]"); if (!b) return;
+  const kind = b.dataset.copy;
+  if (kind === "planYesterday") applyPlan(await getDay(addDays(current, -1)), "p", "von gestern");
+  if (kind === "doneAsPlan") applyPlan(await getDay(addDays(current, -1)), "d", "(gestern gemacht) als Plan");
+  if (kind === "planLastWeekday") { const d = await findLastWeekday(current); applyPlan(d, "p", d ? `vom ${parse(d.date).toLocaleDateString("de-CH")}` : ""); }
+  if (kind === "todosYesterday") {
+    const y = await getDay(addDays(current, -1));
+    const open = { cream: y.cream.filter(x => x.t.trim() && !x.d), cherries: y.cherries.filter(x => x.t.trim() && !x.d), more: y.more.filter(x => x.t.trim() && !x.d) };
+    if (!y.focus.done && y.focus.text.trim() && !day.focus.text.trim()) open.focus = y.focus.text;
+    snapshotForUndo();
+    let n = 0;
+    const all = () => [...day.cream, ...day.cherries, ...day.more];
+    ["cream", "cherries", "more"].forEach(k => open[k].forEach(item => {
+      if (all().some(x => x.t.trim() === item.t.trim())) return;
+      let slot = day[k].find(x => !x.t.trim()) || day.more.find(x => !x.t.trim());
+      if (!slot) { slot = { t: "", d: false }; day.more.push(slot); }
+      slot.t = item.t; slot.d = false; n++;
+    }));
+    if (open.focus) { day.focus.text = open.focus; n++; }
+    renderDay(); queueSave("day");
+    toast(n ? `${n} offene Einträge übernommen` : "Gestern war alles erledigt – nichts zu übernehmen.", n > 0);
+  }
+});
+
+/* Vorlagen */
+const dlg = $("tplDialog");
+$("tplSave").onclick = () => {
+  const n = Object.values(day.slots).filter(s => s.p).length;
+  if (!n) return toast("Der Zeitplan hat noch keine geplanten Einträge.", false);
+  $("tplTitle").textContent = "Zeitplan als Vorlage speichern";
+  $("tplBody").innerHTML = `<p class="sub">${n} geplante Zeitblöcke werden gespeichert.</p><input type="text" id="tplName" placeholder="z. B. Arbeitstag, Wochenende" list="tplNames"><datalist id="tplNames">${Object.keys(meta.templates).map(k => `<option value="${esc(k)}">`).join("")}</datalist>`;
+  $("tplOk").textContent = "Speichern";
+  dlg.onclose = () => {
+    if (dlg.returnValue !== "ok") return;
+    const name = ($("tplName").value || "").trim() || DAY_NAMES[weekday(current)];
+    meta.templates[name] = Object.fromEntries(Object.entries(day.slots).filter(([, s]) => s.p).map(([t, s]) => [t, s.p]));
+    queueSave("meta"); toast(`Vorlage „${name}“ gespeichert`, false);
+  };
+  dlg.showModal(); setTimeout(() => $("tplName").focus(), 30);
+};
+$("tplApply").onclick = () => {
+  const names = Object.keys(meta.templates);
+  if (!names.length) return toast("Noch keine Vorlage. Plane einen Tag und tippe „Als Vorlage speichern“.", false);
+  $("tplTitle").textContent = "Vorlage einfügen";
+  $("tplBody").innerHTML = `<p class="sub">Füllt nur leere Plan-Zeilen.</p><div class="tpl-list">${names.map((k, i) =>
+    `<label><input type="radio" name="tpl" value="${esc(k)}" ${i ? "" : "checked"}> ${esc(k)} <span class="sub">${Object.keys(meta.templates[k]).length} Blöcke</span><button type="button" class="btn small del" data-del="${esc(k)}">Löschen</button></label>`).join("")}</div>`;
+  $("tplOk").textContent = "Einfügen";
+  $("tplBody").onclick = e => {
+    const d = e.target.closest("[data-del]"); if (!d) return;
+    e.preventDefault(); delete meta.templates[d.dataset.del]; queueSave("meta"); d.closest("label").remove();
+  };
+  dlg.onclose = () => {
+    if (dlg.returnValue !== "ok") return;
+    const sel = $("tplBody").querySelector("input[name=tpl]:checked"); if (!sel) return;
+    const tpl = meta.templates[sel.value];
+    applyPlan({ slots: Object.fromEntries(Object.entries(tpl).map(([t, p]) => [t, { p }])) }, "p", `aus „${sel.value}“`);
+  };
+  dlg.showModal();
+};
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+/* ================= Wochenansicht ================= */
+const habitBody = $("habitTable").tBodies[0];
+for (let i = 0; i < HABIT_ROWS; i++) {
+  const tr = document.createElement("tr");
+  tr.innerHTML = `<td class="num">${i + 1}</td><td><input type="text" id="hn${i}" data-wk="habits.${i}.name" data-ac="habit" list="ac-habit" autocomplete="off" placeholder="${["z. B. Morgenroutine", "z. B. Sport", "", "", "", ""][i]}"></td>` +
+    Array.from({ length: 7 }, (_, j) => `<td><input type="checkbox" class="check" data-wk="habits.${i}.days.${j}" aria-label="${DAY_NAMES[j]}"></td>`).join("") +
+    `<td class="num" data-sum="${i}"></td>`;
+  habitBody.appendChild(tr);
+}
+[0, 1].forEach(i => {
+  $("goal" + i).innerHTML = `<div class="label">⟶ Ziel ${i + 1}:</div>` +
+    `<textarea data-wk="goals.${i}.text" rows="3" aria-label="Ziel ${i + 1}"></textarea>` +
+    [0, 1, 2].map(j => `<div class="item"><input type="checkbox" class="check" data-wk="goals.${i}.steps.${j}.d" aria-label="Schritt erledigt"><input type="text" data-wk="goals.${i}.steps.${j}.t" data-ac="todo" list="ac-todo" autocomplete="off" placeholder="Schritt"></div>`).join("");
+});
+$("scale").innerHTML = Array.from({ length: 10 }, (_, i) => `<button type="button" role="radio" aria-checked="false" data-v="${i + 1}">${i + 1}</button>`).join("");
+
+let weekDays = [];
+async function renderWeek() {
+  rendering = true;
+  document.querySelectorAll("#weekView [data-wk]").forEach(el => {
+    const v = getPath(week, el.dataset.wk);
+    if (el.type === "checkbox") el.checked = !!v; else el.value = v || "";
+  });
+  [...$("scale").children].forEach(b => b.setAttribute("aria-checked", String(+b.dataset.v === week.meaning)));
+  const mon = week.monday, sun = addDays(mon, 6);
+  $("weekTitle").textContent = `KW ${isoWeek(mon)} · ${parse(mon).toLocaleDateString("de-CH", { day: "numeric", month: "long" })} – ${parse(sun).toLocaleDateString("de-CH", { day: "numeric", month: "long", year: "numeric" })}`;
+  const ti = todayIso(), tIdx = ti >= mon && ti <= sun ? weekday(ti) : -1;
+  [...$("habitTable").tHead.rows[0].cells].forEach((c, i) => c.classList.toggle("today", i - 2 === tIdx));
+  rendering = false;
+  decorateWeek();
+  weekDays = await Promise.all(Array.from({ length: 7 }, (_, i) => getDay(addDays(mon, i))));
+  if (week.monday !== mon) return;
+  if (current >= mon && current <= sun) weekDays[weekday(current)] = day;
+  renderOverview();
+}
+function decorateWeek() {
+  week.habits.forEach((h, i) => { habitBody.querySelector(`[data-sum="${i}"]`).textContent = h.name.trim() ? h.days.filter(Boolean).length : ""; });
+}
+function renderOverview() {
+  const mon = week.monday, ti = todayIso();
+  const head = `<thead><tr><th></th>${weekDays.map((d, i) => `<th data-open="${d.date}" class="${d.date === ti ? "today" : ""}">${DAY_SHORT[i]} ${parse(d.date).getDate()}.</th>`).join("")}</tr></thead>`;
+  const cell = (d, fn) => fn(d);
+  const rowsDef = [
+    ["Fokus", d => d.focus.text.trim() ? `<td class="${d.focus.done ? "ok" : ""}"><span class="f">${d.focus.done ? "✓ " : ""}${esc(d.focus.text)}</span></td>` : `<td class="sub">–</td>`],
+    ["To-dos", d => { const t = [...d.cream, ...d.cherries, ...d.more].filter(x => x.t.trim()); const n = t.filter(x => x.d).length; return t.length ? `<td class="${n === t.length ? "ok" : ""}">${n} / ${t.length}</td>` : `<td class="sub">–</td>`; }],
+    ["Plan umgesetzt", d => { const s = Object.values(d.slots); const p = s.filter(x => x.p).length, m = s.filter(x => x.p && x.d).length; return p ? `<td>${m} / ${p}</td>` : `<td class="sub">–</td>`; }],
+    ["Getrackt", d => { const n = Object.values(d.slots).filter(x => x.d).length; return n ? `<td>${(n / 4).toLocaleString("de-CH")} h</td>` : `<td class="sub">–</td>`; }],
+    ["Gewohnheiten", d => { const hs = week.habits.filter(h => h.name.trim()); return hs.length ? `<td>${hs.filter(h => h.days[weekday(d.date)]).length} / ${hs.length}</td>` : `<td class="sub">–</td>`; }],
+    ["Stimmung", d => { const m = [...d.moods, d.moodOther].filter(Boolean); return m.length ? `<td><span class="f">${esc(m.join(", "))}</span></td>` : `<td class="sub">–</td>`; }],
+    ["Selbsteinschätzung", d => d.selfRating ? `<td>${d.selfRating} / 10</td>` : `<td class="sub">–</td>`],
+    ["Wasser", d => d.water ? `<td class="${d.water >= WATER_GLASSES ? "ok" : ""}">${d.water} / ${WATER_GLASSES}</td>` : `<td class="sub">–</td>`],
+    ["Fitness", d => { const f = d.fitness.filter(x => x.t.trim()); const w = d.weight ? `${esc(d.weight)} kg` : ""; return f.length || w ? `<td>${f.length ? `${f.filter(x => x.d).length} / ${f.length}` : ""}${f.length && w ? " · " : ""}${w}</td>` : `<td class="sub">–</td>`; }],
+    ["Relax", d => { const r = d.relax.filter(x => x.t.trim()); return r.length ? `<td>${r.filter(x => x.d).length} / ${r.length}</td>` : `<td class="sub">–</td>`; }]
+  ];
+  $("overview").innerHTML = head + "<tbody>" + rowsDef.map(([label, fn]) => `<tr><th>${label}</th>${weekDays.map(d => cell(d, fn)).join("")}</tr>`).join("") + "</tbody>";
+
+  // Zeitraster
+  let html = `<div></div>` + weekDays.map((d, i) => `<div class="hd" data-open="${d.date}">${DAY_SHORT[i]}</div>`).join("");
+  TIMES.forEach(t => {
+    html += `<div class="tm">${t.endsWith(":00") ? t : ""}</div>`;
+    weekDays.forEach(d => { const s = d.slots[t] || {}; html += `<div class="c${s.p ? " p" : ""}${s.d ? " d" : ""}" title="${d.date} ${t}${s.p ? " · Plan: " + esc(s.p) : ""}${s.d ? " · Gemacht: " + esc(s.d) : ""}"></div>`; });
+  });
+  $("heat").innerHTML = html;
+
+  // Kennzahlen Woche
+  const all = weekDays.flatMap(d => Object.values(d.slots));
+  const planned = all.filter(s => s.p).length, met = all.filter(s => s.p && s.d).length, tracked = all.filter(s => s.d).length;
+  const focusDone = weekDays.filter(d => d.focus.done).length;
+  const habitTotal = week.habits.filter(h => h.name.trim()).length * 7, habitDone = week.habits.filter(h => h.name.trim()).reduce((a, h) => a + h.days.filter(Boolean).length, 0);
+  $("weekStats").innerHTML =
+    `<span class="chip">Fokus erledigt <b>${focusDone} / 7</b></span>` +
+    `<span class="chip">Plan umgesetzt <b>${planned ? Math.round(met / planned * 100) : 0} %</b></span>` +
+    `<span class="chip">Getrackt <b>${(tracked / 4).toLocaleString("de-CH")} h</b></span>` +
+    `<span class="chip">Gewohnheiten <b>${habitDone} / ${habitTotal}</b></span>` +
+    (() => { const r = weekDays.map(d => d.selfRating).filter(Boolean); return r.length ? `<span class="chip">Ø Tag <b>${(r.reduce((a, b) => a + b, 0) / r.length).toLocaleString("de-CH", { maximumFractionDigits: 1 })} / 10</b></span>` : ""; })();
+}
+$("weekView").addEventListener("click", e => {
+  const o = e.target.closest("[data-open]");
+  if (o) { setView("day"); loadDate(o.dataset.open); return; }
+  const s = e.target.closest("#scale button");
+  if (s) { snapshotForUndo(); week.meaning = week.meaning === +s.dataset.v ? null : +s.dataset.v; renderWeek(); queueSave("week"); }
+});
+$("weekView").addEventListener("input", e => {
+  if (rendering) return;
+  const el = e.target; if (!el.dataset.wk) return;
+  setPath(week, el.dataset.wk, el.type === "checkbox" ? el.checked : el.value);
+  if (el.dataset.wk.endsWith(".name")) { meta.habitNames = week.habits.map(h => h.name); queueSave("meta"); }
+  decorateWeek(); queueSave("week");
+  if (el.type === "checkbox" && weekDays.length) renderOverview();
+});
+$("habitsFromLast").onclick = async () => {
+  const prev = normWeek(await store.get("weeks", addDays(week.monday, -7)), addDays(week.monday, -7));
+  const names = prev.habits.map(h => h.name).some(Boolean) ? prev.habits.map(h => h.name) : meta.habitNames;
+  if (!names || !names.some(Boolean)) return toast("In der Vorwoche sind keine Gewohnheiten eingetragen.", false);
+  snapshotForUndo();
+  week.habits.forEach((h, i) => { if (!h.name.trim() && names[i]) h.name = names[i]; });
+  renderWeek(); queueSave("week"); toast("Gewohnheiten übernommen");
+};
+
+/* ================= Navigation ================= */
+function setView(v) {
+  view = v;
+  $("dayView").hidden = v !== "day"; $("weekView").hidden = v !== "week";
+  $("tabDay").setAttribute("aria-selected", String(v === "day"));
+  $("tabWeek").setAttribute("aria-selected", String(v === "week"));
+  clearSel();
+  if (v === "week") renderWeek();
+  try { localStorage.setItem("tagesplaner:view", v); } catch {}
+}
+$("tabDay").onclick = () => setView("day");
+$("tabWeek").onclick = () => setView("week");
+$("prev").onclick = () => loadDate(addDays(current, view === "week" ? -7 : -1));
+$("next").onclick = () => loadDate(addDays(current, view === "week" ? 7 : 1));
+$("today").onclick = () => loadDate(todayIso());
+$("datePick").addEventListener("change", e => { if (e.target.value) loadDate(e.target.value); });
+$("jumpNow").onclick = async () => {
+  if (current !== todayIso()) await loadDate(todayIso());
+  const n = slotsHost.querySelector(".slot.now") || rows[0];
+  n.scrollIntoView({ block: "center", behavior: "smooth" });
+  n.querySelector(".d").focus({ preventScroll: true });
+};
+
+function renderAll() { renderDay(); if (view === "week") renderWeek(); }
+
+let loadSeq = 0;
+async function loadDate(date, silent) {
+  const seq = ++loadSeq;
+  await flushAll();
+  const mon = mondayOf(date);
+  const [d, w] = await Promise.all([store.get("days", date), store.get("weeks", mon)]);
+  if (seq !== loadSeq) return;
+  if (date !== current) { clearSel(); undoState = null; }
+  current = date;
+  day = normDay(d, date);
+  week = normWeek(w, mon);
+  // Neue Woche: Gewohnheitsnamen automatisch übernehmen
+  if (!w && meta.habitNames && meta.habitNames.some(Boolean)) week.habits.forEach((h, i) => { h.name = meta.habitNames[i] || ""; });
+  $("datePick").value = date;
+  renderAll();
+  if (!silent) setStatus(d ? "Geladen" : "Neuer Tag");
+}
+
+/* ================= Export / Import ================= */
+$("exportBtn").onclick = async () => {
+  await flushAll();
+  const data = await store.all();
+  const blob = new Blob([JSON.stringify({ app: "tagesplaner", version: 1, exportedAt: new Date().toISOString(), ...data }, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = `tagesplaner-${todayIso()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+$("importFile").addEventListener("change", async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (data.app !== "tagesplaner") throw new Error("Keine Tagesplaner-Datei");
+    let n = 0;
+    for (const kind of ["days", "weeks", "meta"]) for (const [id, v] of Object.entries(data[kind] || {})) { await store.set(kind, id, v); n++; }
+    await loadMeta(); await loadDate(current);
+    toast(`${n} Einträge importiert`, false);
+  } catch (err) { toast("Import fehlgeschlagen: " + err.message, false); }
+  e.target.value = "";
+});
+$("logoutBtn").onclick = async () => { await flushAll(); await store.signOut(); location.reload(); };
+
+/* ================= Start ================= */
+async function loadMeta() {
+  const [v, s] = await Promise.all([store.get("meta", "vocab"), store.get("meta", "settings")]);
+  meta.vocab = v || {}; meta.templates = (s && s.templates) || {}; meta.habitNames = (s && s.habitNames) || [];
+  ac.load(meta.vocab);
+  // Erste Nutzung: Vorschläge aus den letzten 14 Tagen lernen
+  if (!v || !Object.keys(v.slot || {}).length) {
+    const days = await Promise.all(Array.from({ length: 14 }, (_, i) => store.get("days", addDays(todayIso(), -i - 1))));
+    days.filter(Boolean).forEach(d => {
+      Object.values(d.slots || {}).forEach(s => { if (s.p) ac.learn("slot", s.p); if (s.d) ac.learn("slot", s.d); });
+      [...(d.cream || []), ...(d.cherries || [])].forEach(x => x.t && ac.learn("todo", x.t));
+    });
+  }
+}
+
+async function start(s) {
+  if (store && store.mode === s.mode && store.user.email === s.user.email) return;
+  store = s;
+  $("login").hidden = true; $("app").hidden = false;
+  $("userName").textContent = s.mode === "cloud" ? (s.user.name.split(" ")[0] || "Konto") : "Lokal";
+  $("userInfo").textContent = s.mode === "cloud" ? `${s.user.name} · ${s.user.email}` : s.user.email;
+  $("logoutBtn").textContent = s.mode === "cloud" ? "Abmelden" : "Zur Anmeldung";
+  $("foot").textContent = s.mode === "cloud"
+    ? "Alles wird automatisch in deinem Google-Konto gespeichert und auf allen Geräten synchronisiert."
+    : "Ohne Konto: Einträge liegen nur in diesem Browser. Für alle Geräte mit Google anmelden.";
+  setStatus("Lädt …");
+  await loadMeta();
+  let v = "day"; try { v = localStorage.getItem("tagesplaner:view") || "day"; } catch {}
+  await loadDate(todayIso());
+  setView(v);
+}
+
+function showLogin(msg) {
+  $("app").hidden = true; $("login").hidden = false;
+  $("googleLogin").hidden = !cloudAvailable;
+  $("loginMsg").textContent = msg || (cloudAvailable ? "" : "Google-Anmeldung ist noch nicht eingerichtet (siehe README). Du kannst die App schon lokal nutzen.");
+}
+$("googleLogin").onclick = async () => {
+  $("loginMsg").textContent = "";
+  try { await signInWithGoogle(); }
+  catch (e) { $("loginMsg").textContent = e.code === "auth/unauthorized-domain" ? "Diese Adresse ist in Firebase noch nicht freigegeben (Authentication → Einstellungen → Autorisierte Domains)." : "Anmeldung abgebrochen oder fehlgeschlagen."; }
+};
+$("localLogin").onclick = () => start(useLocal());
+
+watchAuth((s, msg) => s ? start(s) : showLogin(msg));

@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Mein Tagesplaner</title>
+<meta name="description" content="Tages- und Wochenplaner im 15-Minuten-Takt: geplant vs. gemacht, Fokus, To-dos und Gewohnheits-Tracker.">
+<meta name="theme-color" content="#a8843f">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23a8843f'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Libre+Caslon+Text:ital@1&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- Anmeldung -->
+<section id="login" class="login" hidden>
+  <div class="login-card">
+    <h1>Mein Tagesplaner</h1>
+    <p class="sub">Planen, was du vorhast. Festhalten, was du gemacht hast. Im 15-Minuten-Takt, mit Wochenplanung und Gewohnheits-Tracker.</p>
+    <button id="googleLogin" class="btn primary big">
+      <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z"/><path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.2 0-11.5-4.1-13.4-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>
+      Mit Google anmelden
+    </button>
+    <button id="localLogin" class="btn">Ohne Konto nutzen (nur dieses Gerät)</button>
+    <p id="loginMsg" class="msg" role="alert"></p>
+  </div>
+</section>
+
+<!-- App -->
+<div id="app" hidden>
+  <header class="top">
+    <div class="wrap top-inner">
+      <div class="brand">
+        <strong>Mein Tagesplaner</strong>
+        <nav class="tabs" role="tablist">
+          <button role="tab" id="tabDay" aria-selected="true">Tag</button>
+          <button role="tab" id="tabWeek" aria-selected="false">Woche</button>
+        </nav>
+      </div>
+      <div class="datenav">
+        <button id="prev" class="btn icon" aria-label="Zurück">‹</button>
+        <input type="date" id="datePick" aria-label="Datum wählen">
+        <button id="next" class="btn icon" aria-label="Weiter">›</button>
+        <button id="today" class="btn">Heute</button>
+      </div>
+      <div class="account">
+        <span id="status" class="status" aria-live="polite"></span>
+        <details class="menu">
+          <summary class="btn" aria-label="Konto und Daten"><span id="userName">Konto</span> ▾</summary>
+          <div class="menu-pop">
+            <div id="userInfo" class="sub"></div>
+            <button id="exportBtn" class="btn">Daten exportieren (JSON)</button>
+            <label class="btn file">Daten importieren <input type="file" id="importFile" accept="application/json" hidden></label>
+            <button id="logoutBtn" class="btn">Abmelden</button>
+          </div>
+        </details>
+      </div>
+    </div>
+  </header>
+
+  <!-- TAG -->
+  <main id="dayView" class="wrap view">
+    <div class="dayhead">
+      <div>
+        <h1 id="longDate">–</h1>
+        <div class="week" id="weekLetters" aria-hidden="true"></div>
+      </div>
+      <div class="stats" id="stats"></div>
+    </div>
+
+    <div class="copybar">
+      <span class="label">Übernehmen</span>
+      <button class="btn small" data-copy="planYesterday">Zeitplan von gestern</button>
+      <button class="btn small" data-copy="planLastWeekday" id="copyWeekdayBtn">Zeitplan vom letzten Montag</button>
+      <button class="btn small" data-copy="todosYesterday">Offene To-dos von gestern</button>
+      <button class="btn small" data-copy="doneAsPlan">Gestern Gemachtes als Plan</button>
+      <span class="sep"></span>
+      <button class="btn small" id="tplApply">Vorlage einfügen</button>
+      <button class="btn small" id="tplSave">Als Vorlage speichern</button>
+    </div>
+
+    <div class="grid">
+      <section class="sheet" aria-label="Journal">
+        <div class="pair">
+          <div class="col">
+            <h3>Ich bin dankbar für:</h3>
+            <input type="text" id="g0" data-k="grateful.0" data-ac="text">
+            <input type="text" id="g1" data-k="grateful.1" data-ac="text">
+          </div>
+          <div class="col">
+            <h3>Ich freue mich auf:</h3>
+            <input type="text" id="f0" data-k="forward.0" data-ac="text">
+            <input type="text" id="f1" data-k="forward.1" data-ac="text">
+          </div>
+          <div class="col span2">
+            <h3>Meine Affirmationen:</h3>
+            <input type="text" id="a0" data-k="affirm.0" data-ac="text" placeholder="z. B. Ich schaffe das Schritt für Schritt">
+            <input type="text" id="a1" data-k="affirm.1" data-ac="text">
+          </div>
+        </div>
+
+        <div class="focus" id="focusBox">
+          <div class="head"><span aria-hidden="true">⟶</span><span class="label">Tages-Fokus</span></div>
+          <p>Das Kuchenstück – danach bin ich zufrieden und gestärkt für den Tag:</p>
+          <div class="weekgoals sub" id="weekGoalsHint"></div>
+          <div class="row">
+            <textarea id="focusText" data-k="focus.text" rows="2" placeholder="Die eine Sache, die heute zählt"></textarea>
+            <input type="checkbox" class="check" id="focusDone" data-k="focus.done" aria-label="Tages-Fokus erledigt">
+          </div>
+        </div>
+
+        <div class="todo">
+          <div class="label">To-do-Liste</div>
+          <h4>Die Sahnehaube:</h4>
+          <div id="cream"></div>
+          <h4>Die Kirschen obendrauf:</h4>
+          <div id="cherries"></div>
+        <h4>Weitere To-dos:</h4>
+        <div id="more"></div>
+        <button class="btn small addrow" id="addMore">+ Zeile</button>
+          <label class="habit"><input type="checkbox" class="check" id="habit" data-k="habit"> Gewohnheits-Tracker genutzt?</label>
+        </div>
+
+        <div class="todo">
+          <div class="label">Gewohnheiten heute</div>
+          <div id="habitsToday" class="habits-today"></div>
+        </div>
+
+        <div class="todo">
+          <div class="label">To-relax-Liste</div>
+          <div id="relax"></div>
+        </div>
+
+        <div class="quote" id="quote"></div>
+
+        <div class="notes">
+          <label class="label" for="ideas">Gedanken, Ideen &amp; Erfolge</label>
+          <textarea id="ideas" data-k="ideas" rows="4" placeholder="Was lief gut? Was habe ich gelernt?"></textarea>
+        </div>
+      </section>
+
+      <section class="sheet" aria-label="Termine und Zeitplan">
+        <div class="notes">
+          <label class="label" for="appts">Termine &amp; Notizen</label>
+          <textarea id="appts" data-k="appts" rows="3" placeholder="z. B. 10:00 Zahnarzt · Paket abholen"></textarea>
+        </div>
+        <div class="plan-head">
+          <div>
+            <div class="label">Zeitplan</div>
+            <div class="sub">05:15 – 20:15. Zeiten antippen/ziehen markiert mehrere Zeilen. Das Quadrat am Feld ziehen füllt nach unten aus – wie in Excel.</div>
+          </div>
+          <button class="btn small" id="jumpNow">Zur aktuellen Zeit</button>
+        </div>
+        <div class="selbar" id="selbar" hidden>
+          <span id="selInfo"></span>
+          <button class="btn small" data-sel="fillPlan">Plan ausfüllen</button>
+          <button class="btn small" data-sel="planToDone">Plan → Gemacht</button>
+          <button class="btn small" data-sel="copy">Kopieren</button>
+          <button class="btn small" data-sel="paste">Einfügen</button>
+          <button class="btn small" data-sel="clear">Leeren</button>
+          <button class="btn small icon" data-sel="close" aria-label="Auswahl aufheben">×</button>
+        </div>
+        <div class="slots" id="slots" role="table" aria-label="Zeitplan">
+          <div class="slot-h" role="row"><div>Zeit</div><div>Geplant</div><div>Gemacht</div><div></div></div>
+          <div class="fill-handle" id="fillHandle" hidden title="Ziehen zum Ausfüllen"></div>
+        </div>
+        <div class="legend">
+          <span><i class="lg-met"></i>gemacht</span>
+          <span><i class="lg-miss"></i>geplant, nicht eingetragen</span>
+          <span><i class="lg-now"></i>jetzt</span>
+          <span><i class="lg-sel"></i>markiert</span>
+        </div>
+      </section>
+    </div>
+
+    <section class="sheet" aria-label="Tages-Reflexion">
+      <div class="label spaced">Tages-Reflexion</div>
+      <div class="refl">
+        <div class="notes">
+          <div class="label small-label">Heute fühlte ich mich …</div>
+          <div class="moods" id="moods"></div>
+          <input type="text" id="moodOther" data-k="moodOther" data-ac="text" placeholder="anders: …">
+        </div>
+        <div class="notes">
+          <div class="label small-label">Fitness &amp; Gesundheit</div>
+          <label class="inline">Gewicht <input type="text" inputmode="decimal" id="weight" data-k="weight" class="short"> kg</label>
+          <div id="fitness"></div>
+        </div>
+        <div class="notes">
+          <div class="label small-label">Mahlzeiten</div>
+          <label class="inline meal">Frühstück <input type="text" id="mBreakfast" data-k="meals.breakfast" data-ac="meal"></label>
+          <label class="inline meal">Mittagessen <input type="text" id="mLunch" data-k="meals.lunch" data-ac="meal"></label>
+          <label class="inline meal">Abendessen <input type="text" id="mDinner" data-k="meals.dinner" data-ac="meal"></label>
+          <label class="inline meal">Snack <input type="text" id="mSnack" data-k="meals.snack" data-ac="meal"></label>
+          <div class="inline">Wasser <span class="water" id="water" role="group" aria-label="Gläser Wasser"></span> <span class="sub" id="waterInfo"></span></div>
+        </div>
+      </div>
+      <div class="notes">
+        <div class="label small-label">Selbsteinschätzung – wie war mein Tag?</div>
+        <div class="scale" id="dayScale" role="radiogroup" aria-label="Tag bewerten 1 bis 10"></div>
+        <textarea id="reflection" data-k="reflection" rows="4" placeholder="Was hat mir Energie gegeben, was hat sie gekostet? Was mache ich morgen anders?"></textarea>
+      </div>
+    </section>
+  </main>
+
+  <!-- WOCHE -->
+  <main id="weekView" class="wrap view" hidden>
+    <div class="dayhead">
+      <div>
+        <div class="label spaced">Wochenplanung</div>
+        <h1 id="weekTitle">–</h1>
+      </div>
+      <div class="stats" id="weekStats"></div>
+    </div>
+
+    <section class="sheet">
+      <div class="plan-head">
+        <div class="label">Gewohnheits-Tracker</div>
+        <button class="btn small" id="habitsFromLast">Gewohnheiten der Vorwoche übernehmen</button>
+      </div>
+      <div class="scroll-x">
+        <table class="habits" id="habitTable">
+          <thead><tr><th class="num">#</th><th>Gewohnheit</th><th>M</th><th>D</th><th>M</th><th>D</th><th>F</th><th>S</th><th>S</th><th class="num">Σ</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="sheet">
+      <div>
+        <div class="label">Wochen-Fokus</div>
+        <p class="sub">Das sind meine zwei großen Wochen-Ziele: Sie haben den größten Einfluss auf meinen Erfolg und landen Tag für Tag in meinem Fokus-Bereich.</p>
+      </div>
+      <div class="goals">
+        <div class="goal" id="goal0"></div>
+        <div class="goal" id="goal1"></div>
+      </div>
+    </section>
+
+    <section class="sheet">
+      <div class="label">Wochenübersicht</div>
+      <div class="scroll-x">
+        <table class="overview" id="overview"></table>
+      </div>
+      <div>
+        <div class="label small-label">Zeitraster der Woche</div>
+        <p class="sub">Umriss = geplant, gefüllt = gemacht. Tippe auf einen Tag, um ihn zu öffnen.</p>
+        <div class="scroll-x"><div class="heat" id="heat"></div></div>
+      </div>
+    </section>
+
+    <section class="sheet">
+      <div class="label spaced">Selbst-Reflexion</div>
+      <div class="notes">
+        <div class="label small-label">Sinn &amp; Motivation</div>
+        <p class="sub">Wie habe ich letzte Woche meinen Wert gelebt?</p>
+        <div class="scale" id="scale" role="radiogroup" aria-label="Bewertung 1 bis 10"></div>
+        <textarea id="meaningNotes" data-wk="meaningNotes" rows="3"></textarea>
+      </div>
+      <div class="notes">
+        <label class="label small-label" for="wins">Erfolge &amp; Fortschritte</label>
+        <p class="sub">Was habe ich letzte Woche gut gemacht? Was mache ich diese Woche anders?</p>
+        <textarea id="wins" data-wk="wins" rows="4"></textarea>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap foot" id="foot"></footer>
+</div>
+
+<dialog id="tplDialog">
+  <form method="dialog" class="dlg">
+    <h3 id="tplTitle">Vorlage</h3>
+    <div id="tplBody"></div>
+    <div class="dlg-actions">
+      <button value="cancel" class="btn">Abbrechen</button>
+      <button value="ok" id="tplOk" class="btn primary">OK</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" hidden><span id="toastText"></span><button class="btn small" id="toastUndo">Rückgängig</button></div>
+
+<datalist id="ac-slot"></datalist>
+<datalist id="ac-todo"></datalist>
+<datalist id="ac-text"></datalist>
+<datalist id="ac-habit"></datalist>
+<datalist id="ac-meal"></datalist>
+<datalist id="ac-fit"></datalist>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
