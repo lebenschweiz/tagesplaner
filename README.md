@@ -29,6 +29,12 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - „+ To-do“ übernimmt den Betreff in die To-dos, „+ Zeitplan“ setzt ihn in den nächsten freien Zeitblock (ab jetzt oder ab der markierten Zeile)
 - Nur Lesezugriff. Mails werden nicht gespeichert – nur was du selbst übernimmst. Die Verbindung gilt jeweils ca. 1 Stunde, danach „Neu verbinden“.
 
+**Asana**
+- Deine offenen Asana-Aufgaben direkt im Tagesplaner: Heute (Bereich „today“ in *Meine Aufgaben* oder heute fällig), Fällig, Alle offenen
+- „+ To-do“, „+ Zeitplan“ oder „Alle einplanen“ (in die nächsten freien Zeitblöcke ab jetzt; ist der Tag voll, landen sie als To-do)
+- Optional: „Heute“ beim Öffnen automatisch einplanen – jede Aufgabe wird pro Tag nur einmal übernommen, auch über mehrere Geräte
+- Nur Lesen, in Asana wird nichts verändert. Funktioniert auch ohne Google-Anmeldung.
+
 **Woche**
 - Gewohnheits-Tracker (6 Gewohnheiten × 7 Tage), Namen werden in die nächste Woche übernommen
 - Wochen-Fokus: Ziel 1 und Ziel 2 mit je 3 Schritten
@@ -71,6 +77,13 @@ Firebase legt im Hintergrund ein Google-Cloud-Projekt mit demselben Namen an. Do
 
 Solange die App im Status „Test“ ist, können nur die eingetragenen Testnutzer Gmail verbinden – genau richtig für den persönlichen Gebrauch.
 
+## Asana einrichten (einmalig, 1 Minute)
+
+1. <https://app.asana.com/0/my-apps> öffnen → **Neuer Zugriffstoken** (Personal access token) → Name z. B. „Tagesplaner“ → Schlüssel kopieren.
+2. In der App im Asana-Feld einfügen → **Asana verbinden**.
+
+Der Schlüssel liegt nur im Browser des jeweiligen Geräts (nicht in der Cloud). Auf jedem Gerät einmal einfügen. „Trennen“ entfernt ihn; in Asana kannst du ihn jederzeit widerrufen.
+
 ## Lokal ausprobieren
 
 ```bash
@@ -87,6 +100,7 @@ Für die Google-Anmeldung lokal zusätzlich `localhost` als autorisierte Domain 
 - `js/app.js` – Tag, Woche, Kopieren/Ausfüllen, Übersicht
 - `js/autocomplete.js` – Excel-artige Vorschläge
 - `js/gmail.js` – Gmail lesen (Liste, Betreff, Absender)
+- `js/asana.js` – Asana-Aufgaben lesen
 - `js/store.js` – Speicher (Firestore oder localStorage)
 - `js/firebase-config.js` – deine Firebase-Konfiguration
 - `firestore.rules` – Zugriffsregeln für die Datenbank

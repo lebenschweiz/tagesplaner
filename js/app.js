@@ -1,5 +1,6 @@
 import { watchAuth, signInWithGoogle, useLocal, cloudAvailable, connectGmail, cachedGmailToken, forgetGmailToken } from "./store.js";
 import { listMessages, FILTERS } from "./gmail.js";
+import { listMyTasks, matches as asanaMatches, FILTERS as ASANA_FILTERS, savedToken as savedAsanaToken, saveToken as saveAsanaToken } from "./asana.js";
 import { createAutocomplete } from "./autocomplete.js";
 
 /* ================= Grundlagen ================= */
@@ -668,7 +669,7 @@ $("jumpNow").onclick = async () => {
   n.querySelector(".d").focus({ preventScroll: true });
 };
 
-function renderAll() { renderDay(); if (view === "week") renderWeek(); }
+function renderAll() { renderDay(); renderAsana(); if (view === "week") renderWeek(); }
 
 let loadSeq = 0;
 async function loadDate(date, silent) {
@@ -790,30 +791,166 @@ $("gmailConnect").onclick = async () => {
     gmailState(e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request" ? "Abgebrochen." : "Verbinden fehlgeschlagen: " + (e.message || e.code), true);
   }
 };
+// Übernehmen in die To-dos bzw. den nächsten freien Plan-Block (für Gmail und Asana)
+function addTodo(text) {
+  let slot = day.more.find(x => !x.t.trim());
+  if (!slot) { slot = { t: "", d: false }; day.more.push(slot); }
+  slot.t = text; slot.d = false;
+}
+function addToPlan(text, quiet) {
+  // Ab markierter Zeile, sonst ab jetzt (heute) bzw. 08:00: erster freier Plan-Block
+  const now = new Date(), nm = now.getHours() * 60 + now.getMinutes();
+  let start = selRange() ? selRange()[0]
+    : current === todayIso() ? TIMES.findIndex(t => { const [h, m] = t.split(":").map(Number); return h * 60 + m + 15 > nm; })
+    : TIMES.indexOf("08:00");
+  if (start < 0) start = current === todayIso() ? TIMES.length : 0;
+  const i = rows.findIndex((r, k) => k >= start && !r.querySelector(".p").value.trim());
+  if (i < 0) return -1;
+  rows[i].querySelector(".p").value = text; slotFromRow(rows[i]);
+  if (!quiet) rows[i].scrollIntoView({ block: "nearest", behavior: "smooth" });
+  return i;
+}
+
 $("mails").addEventListener("click", e => {
   const b = e.target.closest("[data-mail]"); if (!b || b.classList.contains("done")) return;
   const li = b.closest(".mail"), text = "✉ " + li.dataset.subject;
   snapshotForUndo();
   if (b.dataset.mail === "todo") {
-    let slot = day.more.find(x => !x.t.trim());
-    if (!slot) { slot = { t: "", d: false }; day.more.push(slot); }
-    slot.t = text; slot.d = false;
+    addTodo(text);
     toast("Als To-do übernommen");
   } else {
-    // Ab markierter Zeile, sonst ab jetzt (heute) bzw. 08:00: erster freier Plan-Block
-    const now = new Date(), nm = now.getHours() * 60 + now.getMinutes();
-    let start = selRange() ? selRange()[0]
-      : current === todayIso() ? Math.max(0, TIMES.findIndex(t => { const [h, m] = t.split(":").map(Number); return h * 60 + m + 15 > nm; }))
-      : TIMES.indexOf("08:00");
-    if (start < 0) start = TIMES.length - 1;
-    const i = rows.findIndex((r, k) => k >= start && !r.querySelector(".p").value.trim());
+    const i = addToPlan(text);
     if (i < 0) { undoState = null; return toast("Kein freier Zeitblock mehr ab dieser Zeit.", false); }
-    rows[i].querySelector(".p").value = text; slotFromRow(rows[i]);
-    rows[i].scrollIntoView({ block: "nearest", behavior: "smooth" });
     toast(`Um ${TIMES[i]} eingeplant`);
   }
   gmailTaken.add(li.dataset.id + ":" + b.dataset.mail); markTaken(b);
   renderDay(); queueSave("day");
+});
+
+/* ================= Asana ================= */
+let asanaTasks = null, asanaFilter = "today", asanaLoading = false;
+try { asanaFilter = localStorage.getItem("tagesplaner:asanaFilter") || "today"; } catch {}
+$("asanaFilters").innerHTML = Object.entries(ASANA_FILTERS).map(([k, f]) => `<button type="button" data-af="${k}" aria-pressed="false">${f.label}</button>`).join("");
+try { $("asanaBox").open = localStorage.getItem("tagesplaner:asanaOpen") !== "0"; } catch { $("asanaBox").open = true; }
+$("asanaBox").addEventListener("toggle", () => { try { localStorage.setItem("tagesplaner:asanaOpen", $("asanaBox").open ? "1" : "0"); } catch {} });
+const asanaAuto = () => { try { return localStorage.getItem("tagesplaner:asanaAuto") === "1"; } catch { return false; } };
+$("asanaAuto").checked = asanaAuto();
+$("asanaAuto").addEventListener("change", e => {
+  try { localStorage.setItem("tagesplaner:asanaAuto", e.target.checked ? "1" : "0"); } catch {}
+  if (e.target.checked) autoPlanAsana();
+});
+
+function asanaState(msg, showSetup) {
+  $("asanaState").hidden = !msg && !showSetup;
+  $("asanaMsg").textContent = msg || "";
+  $("asanaSetup").hidden = !showSetup;
+  $("asanaHelp").hidden = !showSetup;
+}
+async function loadAsana() {
+  const token = savedAsanaToken();
+  $("asanaRefresh").hidden = $("asanaFoot").hidden = !token;
+  if (!token) {
+    asanaTasks = null; $("tasks").replaceChildren(); $("asanaCount").textContent = ""; $("asanaAll").hidden = true;
+    return asanaState("Hole deine Asana-Aufgaben in den Planer und plane sie mit einem Tipp ein. Nur Lesen – in Asana wird nichts verändert.", true);
+  }
+  if (asanaLoading) return;
+  asanaLoading = true;
+  asanaState("Lädt Aufgaben …", false);
+  try {
+    asanaTasks = await listMyTasks(token);
+    renderAsana();
+    autoPlanAsana();
+  } catch (e) {
+    asanaTasks = null; $("tasks").replaceChildren(); $("asanaAll").hidden = true;
+    if (e.code === "unauthorized") { saveAsanaToken(""); $("asanaFoot").hidden = $("asanaRefresh").hidden = true; asanaState("Der Zugangsschlüssel gilt nicht (mehr). Erstelle einen neuen und füge ihn hier ein.", true); }
+    else asanaState("Aufgaben konnten nicht geladen werden: " + e.message, false);
+  } finally { asanaLoading = false; }
+}
+const asanaTaken = () => (day.asana && typeof day.asana === "object") ? day.asana : (day.asana = {});
+const asanaVisible = () => (asanaTasks || []).filter(t => asanaMatches(t, asanaFilter, todayIso()));
+function renderAsana() {
+  if (!asanaTasks) return;
+  $("asanaFilters").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.af === asanaFilter)));
+  const list = asanaVisible(), taken = day.asana || {};
+  $("asanaCount").textContent = `${list.length} ${ASANA_FILTERS[asanaFilter].label.toLowerCase()}`;
+  $("asanaAll").hidden = !list.some(t => !taken[t.id]);
+  asanaState(list.length ? "" : `Keine Aufgaben unter „${ASANA_FILTERS[asanaFilter].label}“.`, false);
+  const fmt = s => s ? parse(s).toLocaleDateString("de-CH", { day: "numeric", month: "short" }) : "";
+  $("tasks").replaceChildren(...list.map(t => {
+    const li = document.createElement("li");
+    li.className = "mail";
+    li.innerHTML = `<div class="who"><span></span><span></span></div><div class="subj"></div>` +
+      `<div class="acts"><button class="btn" data-task="todo">+ To-do</button><button class="btn" data-task="slot">+ Zeitplan</button>` +
+      `<a class="btn" target="_blank" rel="noopener">Öffnen</a></div>`;
+    const [sec, due] = li.querySelectorAll(".who span");
+    sec.textContent = t.section;
+    due.textContent = t.due ? "fällig " + fmt(t.due) : "";
+    if (t.due && t.due < todayIso()) due.className = "late";
+    li.querySelector(".subj").textContent = t.name;
+    li.querySelector("a").href = t.url;
+    li.dataset.id = t.id;
+    if (taken[t.id]) markTaken(li.querySelector(`[data-task="${taken[t.id]}"]`));
+    return li;
+  }));
+}
+// Legt eine Aufgabe ab; ohne freien Block landet sie als To-do. Gibt die Uhrzeit oder "" zurück.
+function takeAsana(t, kind) {
+  const text = "◆ " + t.name;
+  if (kind === "slot") {
+    const i = addToPlan(text, true);
+    if (i >= 0) { asanaTaken()[t.id] = "slot"; return TIMES[i]; }
+  }
+  addTodo(text); asanaTaken()[t.id] = "todo"; return "";
+}
+function planAllAsana(list) {
+  let slots = 0, todos = 0;
+  list.forEach(t => takeAsana(t, "slot") ? slots++ : todos++);
+  return [slots && `${slots} eingeplant`, todos && `${todos} als To-do`].filter(Boolean).join(", ");
+}
+// Automatisch: nur für heute und nur „Heute“-Aufgaben, die noch nicht übernommen sind
+function autoPlanAsana() {
+  if (!asanaAuto() || !asanaTasks || current !== todayIso()) return;
+  const taken = day.asana || {};
+  const list = asanaTasks.filter(t => asanaMatches(t, "today", current) && !taken[t.id]);
+  if (!list.length) return;
+  snapshotForUndo();
+  const msg = planAllAsana(list);
+  renderDay(); renderAsana(); queueSave("day");
+  toast("Asana: " + msg);
+}
+$("asanaFilters").addEventListener("click", e => {
+  const b = e.target.closest("[data-af]"); if (!b) return;
+  asanaFilter = b.dataset.af;
+  try { localStorage.setItem("tagesplaner:asanaFilter", asanaFilter); } catch {}
+  renderAsana();
+});
+$("asanaRefresh").onclick = loadAsana;
+$("asanaConnect").onclick = () => {
+  const t = $("asanaToken").value.trim();
+  if (!t) return $("asanaToken").focus();
+  saveAsanaToken(t); $("asanaToken").value = "";
+  loadAsana();
+};
+$("asanaToken").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("asanaConnect").click(); } });
+$("asanaDisconnect").onclick = () => { saveAsanaToken(""); loadAsana(); };
+$("asanaAll").onclick = () => {
+  const taken = day.asana || {};
+  const list = asanaVisible().filter(t => !taken[t.id]);
+  if (!list.length) return;
+  snapshotForUndo();
+  const msg = planAllAsana(list);
+  renderDay(); renderAsana(); queueSave("day");
+  toast(msg);
+};
+$("tasks").addEventListener("click", e => {
+  const b = e.target.closest("[data-task]"); if (!b || b.classList.contains("done")) return;
+  const t = asanaTasks.find(x => x.id === b.closest(".mail").dataset.id); if (!t) return;
+  snapshotForUndo();
+  if (b.dataset.task === "slot") {
+    const at = takeAsana(t, "slot");
+    toast(at ? `Um ${at} eingeplant` : "Kein freier Zeitblock mehr – als To-do übernommen");
+  } else { takeAsana(t, "todo"); toast("Als To-do übernommen"); }
+  renderDay(); renderAsana(); queueSave("day");
 });
 
 /* ================= Start ================= */
@@ -847,6 +984,7 @@ async function start(s) {
   await loadDate(todayIso());
   setView(v);
   loadGmail();
+  loadAsana();
 }
 
 function showLogin(msg) {
