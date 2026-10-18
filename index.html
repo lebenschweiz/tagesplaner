@@ -156,6 +156,31 @@
             <ul class="mails" id="mails"></ul>
           </div>
         </details>
+        <details class="gmail" id="asanaBox">
+          <summary><span class="label">Asana</span><span class="sub" id="asanaCount"></span></summary>
+          <div class="gmail-body">
+            <div class="gmail-bar">
+              <div class="moods" id="asanaFilters" role="group" aria-label="Aufgaben filtern"></div>
+              <div class="bar-btns">
+                <button class="btn small" id="asanaAll" hidden>Alle einplanen</button>
+                <button class="btn small" id="asanaRefresh" hidden>Aktualisieren</button>
+              </div>
+            </div>
+            <div id="asanaState" class="gmail-state">
+              <p class="sub" id="asanaMsg"></p>
+              <p class="sub" id="asanaHelp" hidden>Einmalig: In der <a href="https://app.asana.com/0/my-apps" target="_blank" rel="noopener">Asana-Entwicklerkonsole</a> auf „Neuer Zugriffstoken“ tippen, einen Namen wie „Tagesplaner“ eingeben und den Schlüssel hier einfügen. Er bleibt nur in diesem Browser.</p>
+              <div class="asana-setup" id="asanaSetup" hidden>
+                <input type="password" id="asanaToken" placeholder="Zugangsschlüssel einfügen" autocomplete="off" aria-label="Asana-Zugangsschlüssel">
+                <button class="btn primary" id="asanaConnect">Asana verbinden</button>
+              </div>
+            </div>
+            <ul class="mails" id="tasks"></ul>
+            <div class="asana-foot" id="asanaFoot" hidden>
+              <label><input type="checkbox" class="check" id="asanaAuto"> „Heute“ beim Öffnen automatisch einplanen</label>
+              <button class="btn small" id="asanaDisconnect">Trennen</button>
+            </div>
+          </div>
+        </details>
         <div class="notes">
           <label class="label" for="appts">Termine &amp; Notizen</label>
           <textarea id="appts" data-k="appts" rows="3" placeholder="z. B. 10:00 Zahnarzt · Paket abholen"></textarea>
