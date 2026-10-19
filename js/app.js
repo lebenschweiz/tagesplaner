@@ -269,7 +269,32 @@ function decorateDay() {
     `<span class="chip${tasks.length && tasksDone === tasks.length ? " good" : ""}">To-dos <b>${tasksDone} / ${tasks.length}</b></span>` +
     `<span class="chip">Plan umgesetzt <b>${met} / ${planned}</b></span>` +
     `<span class="chip">Getrackt <b>${hrs} h</b></span>`;
+  renderLoad();
   positionHandle();
+}
+
+// Auslastung: Zeit pro Eintrag; „Cocktail: Video“ und „Cocktail: Mail“ zählen beide als „Cocktail“
+const loadKey = v => v.split(":")[0].trim();
+const fmtDur = min => { const h = Math.floor(min / 60), m = min % 60; return h ? (m ? `${h} h ${m} min` : `${h} h`) : `${m} min`; };
+function loadList(col) {
+  const groups = new Map();
+  rows.forEach(r => {
+    const name = loadKey(r.querySelector(col).value); if (!name) return;
+    const k = name.toLocaleLowerCase("de-CH");
+    const g = groups.get(k) || { name, n: 0 }; g.n++; groups.set(k, g);
+  });
+  const list = [...groups.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, "de-CH"));
+  const total = list.reduce((s, g) => s + g.n, 0);
+  if (!total) return `<li class="sub">Noch nichts eingetragen</li>`;
+  return list.map(g => {
+    const pct = Math.round(g.n / total * 100);
+    return `<li><span class="n" title="${esc(g.name)}">${esc(g.name)}</span><span class="v">${fmtDur(g.n * 15)} · ${pct} %</span>` +
+      `<span class="bar"><i style="width:${g.n / list[0].n * 100}%"></i></span></li>`;
+  }).join("") + `<li class="sum"><span class="n">Gesamt</span><span class="v">${fmtDur(total * 15)}</span></li>`;
+}
+function renderLoad() {
+  $("loadPlan").innerHTML = loadList(".p");
+  $("loadDone").innerHTML = loadList(".d");
 }
 setInterval(() => { if (view === "day") decorateDay(); }, 60000);
 
