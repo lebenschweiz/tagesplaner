@@ -123,6 +123,19 @@ button{font:inherit;color:inherit;cursor:pointer}
 .lg-miss{background:var(--warn)}
 .lg-now{background:var(--now);border:1px solid var(--warn)}
 .lg-sel{background:var(--sel);border:1px solid var(--sel-line)}
+.load{display:grid;gap:10px}
+.load-cols{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
+@media (max-width:480px){.load-cols{grid-template-columns:1fr}}
+.load-col{min-width:0}
+.load-col h4{margin:0 0 4px;font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.load-col ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.load-col li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;font-size:13.5px;font-variant-numeric:tabular-nums}
+.load-col li .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.load-col li .v{color:var(--muted)}
+.load-col li .bar{grid-column:1/-1;height:5px;background:var(--slot-alt);border-radius:3px;overflow:hidden}
+.load-col li .bar i{display:block;height:100%;background:var(--gold);border-radius:3px}
+#loadDone li .bar i{background:var(--ok)}
+.load-col li.sum{border-top:1px solid var(--line);padding-top:6px;font-weight:600}
 .selbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--sel);border:1px solid var(--sel-line);border-radius:8px;padding:6px 8px}
 .selbar #selInfo{font-weight:600;font-size:13.5px;margin-right:4px}
 .slots{position:relative;display:grid;border:1px solid var(--line);border-radius:8px}

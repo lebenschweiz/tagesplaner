@@ -13,6 +13,7 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - **Zeitplan 05:15 – 20:15 im 15-Minuten-Takt: Spalte „Geplant“ und „Gemacht“**
   - ✓ übernimmt den Plan als gemacht; vergangene, nicht eingetragene Blöcke werden markiert
   - aktueller Block hervorgehoben, „Zur aktuellen Zeit“ springt hin
+  - **Auslastung**: Zeit und Anteil pro Eintrag, getrennt für Geplant und Gemacht. Bei „Thema: Detail“ zählt nur der Teil vor dem ersten Doppelpunkt („Cocktail: Video“ und „Cocktail: Mail“ → „Cocktail“).
 - Tages-Reflexion: Stimmung, Fitness & Gesundheit (Gewicht, Training), Mahlzeiten, Wasser (8 Gläser), Selbsteinschätzung 1–10
 
 **Wie in Excel**
