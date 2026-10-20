@@ -5,6 +5,8 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 ## Was die App kann
 
 **Tag**
+- Die Tagesseite ist nach Tageszeit in drei Bereiche geteilt, jeder mit eigener Farbe und über die Sprungleiste oben erreichbar: **Ausrichten** (Fokus, Fortschritt, Ziele, Dankbarkeit), **Durch den Tag** (Zeitplan, Aufgaben, Termine, Gewohnheiten) und **Festhalten** (Reflexion, Körper, Gedanken).
+- Fortschritt auf einen Blick: Plan umgesetzt, Aufgaben, getrackte Zeit und Gewohnheiten als Balken
 - Ich bin dankbar für · Ich freue mich auf · Meine Affirmationen
 - Tages-Fokus („Das Kuchenstück“) zum Abhaken, mit Hinweis auf die Wochenziele
 - To-do-Liste: Sahnehaube (2), Kirschen obendrauf (4), weitere To-dos (beliebig viele), To-relax-Liste
@@ -13,13 +15,14 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - **Zeitplan im 15-Minuten-Takt: Spalte „Geplant“ und „Gemacht“**
   - Zeitraum frei wählbar (Standard 05:15 – 20:30): „von/bis“ oder „1 Stunde früher/später“. Gilt für den Tag und als Vorgabe für neue Tage; Einträge außerhalb bleiben erhalten.
   - **Pausen**: Zeilen markieren → „Pause“. Pausen werden schraffiert, getrennt gezählt und nicht als verpasst markiert.
-  - ✓ übernimmt den Plan als gemacht; vergangene, nicht eingetragene Blöcke werden markiert
-  - aktueller Block hervorgehoben, „Zur aktuellen Zeit“ springt hin
+  - Gleiche Einträge hintereinander erscheinen als ein Block mit Dauer; Gemacht ist grün (wie geplant) oder orange (anders gemacht)
+  - ✓ übernimmt den Plan als gemacht; vergangene, nicht eingetragene Blöcke sind gestrichelt umrandet
+  - eine rote Linie zeigt die aktuelle Uhrzeit, „Jetzt“ springt hin; die Bedienhilfe liegt hinter dem „?“
   - **Auslastung**: Zeit und Anteil pro Eintrag, getrennt für Geplant und Gemacht. Bei „Thema: Detail“ zählt nur der Teil vor dem ersten Doppelpunkt („Cocktail: Video“ und „Cocktail: Mail“ → „Cocktail“).
 - Tages-Reflexion: Stimmung, Fitness & Gesundheit (Gewicht, Training), Mahlzeiten, Wasser (8 Gläser), Selbsteinschätzung 1–10
 
 - **Ziele & Etappen** des Tages: Tagesziele anlegen (optional zu einem Wochen-, Monats- oder Jahresziel) und abhaken, mit Restzeit
-- Alle Bereiche lassen sich auf- und zuklappen („Alle Bereiche auf / Alle zu“); der Zustand bleibt in diesem Browser gespeichert.
+- Alle Karten lassen sich auf- und zuklappen (in der Wochenansicht auch „Alle Bereiche auf / Alle zu“); der Zustand bleibt in diesem Browser gespeichert.
 
 **Ziele**
 - Jahres-, Monats-, Wochen- und Tagesziele mit Frist („erreichen bis“). Die Frist schlägt das Ende des Zeitraums vor und ist frei änderbar.
@@ -32,7 +35,7 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - **Ausfüllkästchen**: Das kleine Quadrat am aktiven Feld nach unten ziehen füllt die Zeilen darunter aus.
 - **Mehrere Zeilen markieren**: Auf die Uhrzeit klicken und ziehen (oder Shift-Klick; auf dem Handy zwei Uhrzeiten antippen). Dann: Plan ausfüllen, Plan → Gemacht, Kopieren, Einfügen, Leeren. `Strg+C`, `Strg+D` funktionieren auch.
 - **Einfügen aus Excel/Notizen**: Mehrere Zeilen einfügen verteilt sie untereinander (Tab trennt Geplant/Gemacht).
-- **Übernehmen**: Zeitplan von gestern, Zeitplan vom letzten gleichen Wochentag, offene To-dos von gestern, gestern Gemachtes als Plan.
+- **Tag vorbereiten** (Menü oben rechts): Zeitplan von gestern, Zeitplan vom letzten gleichen Wochentag, offene To-dos von gestern, gestern Gemachtes als Plan.
 - **Vorlagen**: Einen Zeitplan als Vorlage speichern (z. B. „Arbeitstag“) und an anderen Tagen einfügen.
 - Jede dieser Aktionen lässt sich mit „Rückgängig“ zurücknehmen.
 
