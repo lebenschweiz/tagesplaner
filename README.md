@@ -10,11 +10,22 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - To-do-Liste: Sahnehaube (2), Kirschen obendrauf (4), weitere To-dos (beliebig viele), To-relax-Liste
 - Gewohnheiten des Tages direkt abhaken (kommen aus der Wochenplanung)
 - Termine & Notizen, Gedanken, Ideen & Erfolge
-- **Zeitplan 05:15 – 20:15 im 15-Minuten-Takt: Spalte „Geplant“ und „Gemacht“**
+- **Zeitplan im 15-Minuten-Takt: Spalte „Geplant“ und „Gemacht“**
+  - Zeitraum frei wählbar (Standard 05:15 – 20:30): „von/bis“ oder „1 Stunde früher/später“. Gilt für den Tag und als Vorgabe für neue Tage; Einträge außerhalb bleiben erhalten.
+  - **Pausen**: Zeilen markieren → „Pause“. Pausen werden schraffiert, getrennt gezählt und nicht als verpasst markiert.
   - ✓ übernimmt den Plan als gemacht; vergangene, nicht eingetragene Blöcke werden markiert
   - aktueller Block hervorgehoben, „Zur aktuellen Zeit“ springt hin
   - **Auslastung**: Zeit und Anteil pro Eintrag, getrennt für Geplant und Gemacht. Bei „Thema: Detail“ zählt nur der Teil vor dem ersten Doppelpunkt („Cocktail: Video“ und „Cocktail: Mail“ → „Cocktail“).
 - Tages-Reflexion: Stimmung, Fitness & Gesundheit (Gewicht, Training), Mahlzeiten, Wasser (8 Gläser), Selbsteinschätzung 1–10
+
+- **Ziele & Etappen** des Tages: Tagesziele anlegen (optional zu einem Wochen-, Monats- oder Jahresziel) und abhaken, mit Restzeit
+- Alle Bereiche lassen sich auf- und zuklappen („Alle Bereiche auf / Alle zu“); der Zustand bleibt in diesem Browser gespeichert.
+
+**Ziele**
+- Jahres-, Monats-, Wochen- und Tagesziele mit Frist („erreichen bis“). Die Frist schlägt das Ende des Zeitraums vor und ist frei änderbar.
+- „+ Etappe“ teilt ein Ziel auf: Jahr → Monate → Wochen → Tage. Etappen können nicht später fällig sein als ihr Ziel.
+- Restzeit pro Ziel („noch 3 Wochen, 2 Tage“, „heute fällig“, „seit 2 Tagen überfällig“), Fortschritt der Etappen und verstrichene Zeit.
+- Filter Offen / Alle / Erreicht.
 
 **Wie in Excel**
 - **Autovervollständigung**: Beim Tippen wird ein früherer Eintrag vorgeschlagen und markiert ergänzt – Enter/Tab übernimmt, weitertippen überschreibt. Auf dem Handy erscheinen die Vorschläge als Liste.
@@ -32,6 +43,7 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 
 **Woche**
 - Gewohnheits-Tracker (6 Gewohnheiten × 7 Tage), Namen werden in die nächste Woche übernommen
+- Ziele & Etappen der Woche: Wochenziele zu Monats-/Jahreszielen anlegen, Tagesziele der Woche, übergeordnete Ziele mit Restzeit
 - Wochen-Fokus: Ziel 1 und Ziel 2 mit je 3 Schritten
 - Wochenübersicht: Fokus, To-dos, Plan umgesetzt, getrackte Stunden, Gewohnheiten, Stimmung, Selbsteinschätzung, Wasser, Fitness – pro Tag
 - Zeitraster der Woche (geplant/gemacht als Mini-Kalender)
@@ -87,6 +99,7 @@ Für die Google-Anmeldung lokal zusätzlich `localhost` als autorisierte Domain 
 - `css/style.css` – Gestaltung (hell/dunkel automatisch)
 - `js/app.js` – Tag, Woche, Kopieren/Ausfüllen, Übersicht
 - `js/autocomplete.js` – Excel-artige Vorschläge
+- `js/goals.js` – Ziele mit Etappen und Fristen
 - `js/gmail.js` – Gmail lesen (Liste, Betreff, Absender)
 - `js/store.js` – Speicher (Firestore oder localStorage)
 - `js/firebase-config.js` – deine Firebase-Konfiguration

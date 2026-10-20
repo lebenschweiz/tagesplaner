@@ -1,6 +1,7 @@
 import { watchAuth, signInWithGoogle, useLocal, cloudAvailable, connectGmail, cachedGmailToken, forgetGmailToken } from "./store.js";
 import { listMessages, FILTERS } from "./gmail.js";
 import { createAutocomplete } from "./autocomplete.js";
+import { createGoals } from "./goals.js";
 
 /* ================= Grundlagen ================= */
 const $ = id => document.getElementById(id);
@@ -30,8 +31,12 @@ const QUOTES = [
   ["Wir sind, was wir wiederholt tun.", "Will Durant"],
   ["Ruhe ist die Mutter des Erfolgs.", "Sprichwort"]
 ];
-const TIMES = [];
-for (let m = 5 * 60 + 15; m <= 20 * 60 + 15; m += 15) TIMES.push(`${pad(Math.floor(m / 60))}:${pad(m % 60)}`);
+// Zeitplan: alle 15-Minuten-Blöcke des Tages; angezeigt wird der gewählte Zeitraum (Standard 05:15 – 20:30)
+const hm = m => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+const toMin = t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+const ALL_TIMES = Array.from({ length: 96 }, (_, i) => hm(i * 15));
+const DEFAULT_RANGE = { start: 5 * 60 + 15, end: 20 * 60 + 30 };
+let TIMES = [];
 const HABIT_ROWS = 6;
 const MOODS = ["glücklich", "begeistert", "hoffnungsvoll", "liebevoll", "entspannt", "dankbar", "müde", "traurig", "gestresst", "überfordert"];
 const WATER_GLASSES = 8;
@@ -86,11 +91,12 @@ let view = "day";
 let current = todayIso();
 let day = blankDay(current);
 let week = blankWeek(mondayOf(current));
-let meta = { vocab: null, templates: {}, habitNames: [] };
+let meta = { vocab: null, templates: {}, habitNames: [], range: null };
 let rendering = false;
 const timers = {};
 const dirty = new Set();
 const ac = createAutocomplete({ onChange: v => { meta.vocab = v; queueSave("meta"); } });
+const goals = createGoals({ onChange: () => queueSave("goals"), today: todayIso, onOpen: id => { setView("goals"); goals.reveal(id); setTimeout(() => document.querySelector(`#goalsView [data-gid="${id}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 30); } });
 
 /* ================= Speichern ================= */
 function setStatus(t, err) { const s = $("status"); s.textContent = t; s.classList.toggle("err", !!err); }
@@ -109,8 +115,9 @@ async function flush(what) {
     if (what === "week") { const w = clone(week); w.updatedAt = new Date().toISOString(); await store.set("weeks", w.monday, w); }
     if (what === "meta") {
       await store.set("meta", "vocab", meta.vocab || {});
-      await store.set("meta", "settings", { templates: meta.templates, habitNames: meta.habitNames });
+      await store.set("meta", "settings", { templates: meta.templates, habitNames: meta.habitNames, range: meta.range });
     }
+    if (what === "goals") await store.set("meta", "goals", { ...goals.data(), updatedAt: new Date().toISOString() });
     if (!dirty.size) setStatus("Gespeichert " + new Date().toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" }));
   } catch (e) {
     console.error(e);
@@ -119,7 +126,7 @@ async function flush(what) {
     timers[what] = setTimeout(() => flush(what), 5000);
   }
 }
-const flushAll = () => Promise.all(["day", "week", "meta"].map(flush));
+const flushAll = () => Promise.all(["day", "week", "meta", "goals"].map(flush));
 window.addEventListener("pagehide", () => { if (dirty.size) flushAll(); });
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) flushAll();
@@ -128,7 +135,7 @@ document.addEventListener("visibilitychange", () => {
 
 /* ================= Rückgängig ================= */
 let undoState = null, toastTimer = null;
-function snapshotForUndo(label) { undoState = { day: clone(day), week: clone(week), label }; }
+function snapshotForUndo(label) { undoState = { day: clone(day), week: clone(week), goals: goals.data(), label }; }
 function toast(text, undoable = true) {
   $("toastText").textContent = text;
   $("toastUndo").hidden = !undoable || !undoState;
@@ -139,9 +146,12 @@ $("toastUndo").onclick = () => {
   if (!undoState) return;
   if (undoState.day.date === day.date) { day = undoState.day; queueSave("day"); }
   if (undoState.week.monday === week.monday) { week = undoState.week; queueSave("week"); }
+  if (JSON.stringify(undoState.goals) !== JSON.stringify(goals.data())) { goals.load(undoState.goals); queueSave("goals"); }
   undoState = null; $("toast").hidden = true;
   renderAll();
 };
+goals.beforeChange = () => snapshotForUndo();
+goals.afterDelete = n => toast(n > 1 ? `Ziel mit ${n - 1} Etappen gelöscht` : "Ziel gelöscht");
 
 /* ================= Aufbau Tagesansicht ================= */
 function itemRow(key, i, ph, group) {
@@ -191,7 +201,7 @@ function paintReflection() {
 }
 
 const slotsHost = $("slots");
-const rows = TIMES.map(t => {
+const allRows = ALL_TIMES.map(t => {
   const r = document.createElement("div");
   r.className = "slot" + (t.endsWith(":00") ? " hour" : "");
   r.dataset.t = t; r.setAttribute("role", "row");
@@ -203,6 +213,39 @@ const rows = TIMES.map(t => {
   slotsHost.insertBefore(r, $("fillHandle"));
   return r;
 });
+let rows = [];
+
+/* Zeitraum des Zeitplans: pro Tag gespeichert, zuletzt gewählter gilt als Vorgabe für neue Tage */
+const rangeOf = d => (d && d.range && d.range.end > d.range.start) ? d.range : (meta.range || DEFAULT_RANGE);
+$("rangeStart").innerHTML = ALL_TIMES.map((t, i) => `<option value="${i * 15}">${t}</option>`).join("");
+$("rangeEnd").innerHTML = ALL_TIMES.map((t, i) => `<option value="${(i + 1) * 15}">${i === 95 ? "24:00" : hm((i + 1) * 15)}</option>`).join("");
+function applyRange() {
+  const { start, end } = rangeOf(day);
+  rows = allRows.filter(r => { const m = toMin(r.dataset.t); return m >= start && m < end; });
+  TIMES = rows.map(r => r.dataset.t);
+  allRows.forEach(r => { r.hidden = !rows.includes(r); });
+  $("rangeStart").value = start; $("rangeEnd").value = end;
+  $("rangeInfo").textContent = `${hm(start)} – ${end === 1440 ? "24:00" : hm(end)}`;
+  $("rangeEarlier").hidden = start === 0;
+  $("rangeLater").hidden = end === 1440;
+  const outside = Object.keys(day.slots).filter(t => { const m = toMin(t); return m < start || m >= end; }).sort();
+  $("rangeOut").textContent = outside.length ? `${outside.length} Einträge außerhalb (${outside.slice(0, 3).join(", ")}${outside.length > 3 ? " …" : ""})` : "";
+  $("rangeFit").hidden = !outside.length;
+  $("rangeFit").textContent = "Zeitraum auf alle Einträge erweitern";
+  $("rangeFit").dataset.start = Math.min(start, ...outside.map(toMin));
+  $("rangeFit").dataset.end = Math.max(end, ...outside.map(t => toMin(t) + 15));
+}
+function setRange(start, end) {
+  start = Math.max(0, Math.min(1425, start)); end = Math.max(start + 15, Math.min(1440, end));
+  day.range = { start, end }; meta.range = { start, end };
+  clearSel(); applyRange(); decorateDay();
+  queueSave("day"); queueSave("meta");
+}
+$("rangeStart").addEventListener("change", e => { const s = +e.target.value, r = rangeOf(day); setRange(s, Math.max(r.end, s + 15)); });
+$("rangeEnd").addEventListener("change", e => { const en = +e.target.value, r = rangeOf(day); setRange(Math.min(r.start, en - 15), en); });
+$("rangeEarlier").onclick = () => { const r = rangeOf(day); setRange(r.start - 60, r.end); rows[0]?.scrollIntoView({ block: "nearest" }); };
+$("rangeLater").onclick = () => { const r = rangeOf(day); setRange(r.start, r.end + 60); };
+$("rangeFit").onclick = () => setRange(+$("rangeFit").dataset.start, +$("rangeFit").dataset.end);
 $("weekLetters").innerHTML = DAY_LETTERS.map(d => `<span>${d}</span>`).join("");
 document.querySelectorAll("[data-ac]").forEach(el => { el.setAttribute("list", "ac-" + el.dataset.ac); el.autocomplete = "off"; });
 
@@ -217,10 +260,12 @@ function renderDay() {
     const v = getPath(day, el.dataset.k);
     if (el.type === "checkbox") el.checked = !!v; else el.value = v || "";
   });
-  rows.forEach(r => {
+  allRows.forEach(r => {
     const s = day.slots[r.dataset.t] || {};
     r.querySelector(".p").value = s.p || ""; r.querySelector(".d").value = s.d || "";
+    r.classList.toggle("pause", !!s.b);
   });
+  applyRange();
   const d = parse(current), wd = weekday(current);
   $("longDate").textContent = d.toLocaleDateString("de-CH", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   [...$("weekLetters").children].forEach((s, i) => s.classList.toggle("on", i === wd));
@@ -240,8 +285,9 @@ function renderDay() {
     l.append(document.createTextNode(h.name));
     host.appendChild(l);
   });
-  const goals = week.goals.map(g => g.text.trim()).filter(Boolean);
-  $("weekGoalsHint").textContent = goals.length ? "Wochenziele: " + goals.join(" · ") : "";
+  const wg = week.goals.map(g => g.text.trim()).filter(Boolean);
+  $("weekGoalsHint").textContent = wg.length ? "Wochenziele: " + wg.join(" · ") : "";
+  goals.setRef(current);
   paintReflection();
   rendering = false;
   decorateDay();
@@ -250,13 +296,14 @@ function renderDay() {
 function decorateDay() {
   const t = todayIso(), isToday = current === t, past = current < t;
   const nowD = new Date(), nm = nowD.getHours() * 60 + nowD.getMinutes();
-  let planned = 0, met = 0, tracked = 0;
-  rows.forEach(r => {
-    const [h, m] = r.dataset.t.split(":").map(Number), sm = h * 60 + m;
+  let planned = 0, met = 0, tracked = 0, pauses = 0;
+  allRows.forEach(r => {
+    const sm = toMin(r.dataset.t), pause = r.classList.contains("pause");
     const p = r.querySelector(".p").value.trim(), d = r.querySelector(".d").value.trim();
-    if (p) planned++; if (d) tracked++; if (p && d) met++;
-    r.classList.toggle("met", !!d);
-    r.classList.toggle("missed", !!p && !d && (past || (isToday && sm + 15 <= nm)));
+    if (pause) { pauses++; r.classList.remove("met", "missed"); }
+    else { if (p) planned++; if (d) tracked++; if (p && d) met++; }
+    r.classList.toggle("met", !!d && !pause);
+    r.classList.toggle("missed", !pause && !!p && !d && (past || (isToday && sm + 15 <= nm)));
     r.classList.toggle("now", isToday && nm >= sm && nm < sm + 15);
   });
   $("focusBox").classList.toggle("done", !!day.focus.done);
@@ -268,7 +315,8 @@ function decorateDay() {
     `<span class="chip${day.focus.done ? " good" : ""}">Fokus <b>${day.focus.done ? "erledigt" : (day.focus.text.trim() ? "offen" : "–")}</b></span>` +
     `<span class="chip${tasks.length && tasksDone === tasks.length ? " good" : ""}">To-dos <b>${tasksDone} / ${tasks.length}</b></span>` +
     `<span class="chip">Plan umgesetzt <b>${met} / ${planned}</b></span>` +
-    `<span class="chip">Getrackt <b>${hrs} h</b></span>`;
+    `<span class="chip">Getrackt <b>${hrs} h</b></span>` +
+    (pauses ? `<span class="chip pause-chip">Pause <b>${fmtDur(pauses * 15)}</b></span>` : "");
   renderLoad();
   positionHandle();
 }
@@ -278,8 +326,8 @@ const loadKey = v => v.split(":")[0].trim();
 const fmtDur = min => { const h = Math.floor(min / 60), m = min % 60; return h ? (m ? `${h} h ${m} min` : `${h} h`) : `${m} min`; };
 function loadList(col) {
   const groups = new Map();
-  rows.forEach(r => {
-    const name = loadKey(r.querySelector(col).value); if (!name) return;
+  allRows.forEach(r => {
+    const name = r.classList.contains("pause") ? "Pause" : loadKey(r.querySelector(col).value); if (!name) return;
     const k = name.toLocaleLowerCase("de-CH");
     const g = groups.get(k) || { name, n: 0 }; g.n++; groups.set(k, g);
   });
@@ -300,8 +348,8 @@ setInterval(() => { if (view === "day") decorateDay(); }, 60000);
 
 /* ================= Eingaben Tag ================= */
 function slotFromRow(r) {
-  const t = r.dataset.t, p = r.querySelector(".p").value, d = r.querySelector(".d").value;
-  if (p || d) day.slots[t] = { p, d }; else delete day.slots[t];
+  const t = r.dataset.t, p = r.querySelector(".p").value, d = r.querySelector(".d").value, b = r.classList.contains("pause");
+  if (p || d || b) day.slots[t] = b ? { p, d, b } : { p, d }; else delete day.slots[t];
 }
 $("dayView").addEventListener("input", e => {
   if (rendering) return;
@@ -329,8 +377,8 @@ slotsHost.addEventListener("keydown", e => {
   if (e.key === "Enter" && inp.selectionStart !== inp.selectionEnd) inp.setSelectionRange(inp.value.length, inp.value.length);
   inp.dispatchEvent(new Event("change", { bubbles: true }));
   const up = e.key === "ArrowUp" || (e.key === "Enter" && e.shiftKey);
-  const nx = up ? r.previousElementSibling : r.nextElementSibling;
-  if (nx && nx.classList.contains("slot")) { e.preventDefault(); nx.querySelector(col).focus(); }
+  const nx = rows[rows.indexOf(r) + (up ? -1 : 1)];
+  if (nx) { e.preventDefault(); nx.querySelector(col).focus(); }
 });
 // Mehrzeiliges Einfügen (z. B. aus Excel: Zeilen untereinander, Tab trennt Geplant/Gemacht)
 slotsHost.addEventListener("paste", e => {
@@ -363,7 +411,7 @@ function paintSel() {
   $("selbar").hidden = !r;
   if (r) $("selInfo").textContent = `${TIMES[r[0]]} – ${endTime(r[1])} · ${r[1] - r[0] + 1} Zeilen`;
 }
-function endTime(i) { const [h, m] = TIMES[i].split(":").map(Number); const x = h * 60 + m + 15; return `${pad(Math.floor(x / 60))}:${pad(x % 60)}`; }
+function endTime(i) { const x = toMin(TIMES[i]) + 15; return x === 1440 ? "24:00" : hm(x); }
 function clearSel() { selA = selB = null; paintSel(); }
 
 slotsHost.addEventListener("pointerdown", e => {
@@ -381,7 +429,7 @@ slotsHost.addEventListener("pointermove", e => {
   if (!dragSel) return;
   const el = document.elementFromPoint(e.clientX, e.clientY);
   const r = el && el.closest(".slot");
-  if (r) { const i = rows.indexOf(r); if (i !== selB) { selB = i; paintSel(); } }
+  if (r) { const i = rows.indexOf(r); if (i >= 0 && i !== selB) { selB = i; paintSel(); } }
 });
 window.addEventListener("pointerup", () => { dragSel = false; });
 document.addEventListener("keydown", e => { if (e.key === "Escape") clearSel(); });
@@ -426,9 +474,16 @@ $("selbar").addEventListener("click", async e => {
     if (!clip) { try { const t = await navigator.clipboard.readText(); if (t) return pasteRows(t, r[0], 0); } catch {} return toast("Nichts zum Einfügen kopiert.", false); }
     return pasteRows(clip.map(c => c.join("\t")).join("\n"), r[0], 0);
   }
+  if (act === "pause") {
+    // Alle markierten Zeilen schon Pause → Pause aufheben, sonst alle als Pause markieren
+    const sel = rows.slice(r[0], r[1] + 1), on = !sel.every(x => x.classList.contains("pause"));
+    snapshotForUndo();
+    sel.forEach(x => { x.classList.toggle("pause", on); slotFromRow(x); });
+    toast(on ? `${sel.length * 15} min als Pause markiert` : "Pause aufgehoben");
+  }
   if (act === "clear") {
     snapshotForUndo();
-    for (let i = r[0]; i <= r[1]; i++) { rows[i].querySelector(".p").value = ""; rows[i].querySelector(".d").value = ""; slotFromRow(rows[i]); }
+    for (let i = r[0]; i <= r[1]; i++) { rows[i].querySelector(".p").value = ""; rows[i].querySelector(".d").value = ""; rows[i].classList.remove("pause"); slotFromRow(rows[i]); }
     toast("Zeilen geleert");
   }
   decorateDay(); queueSave("day");
@@ -464,7 +519,7 @@ $("fillHandle").addEventListener("pointerdown", e => {
 $("fillHandle").addEventListener("pointermove", e => {
   if (fillFrom == null) return;
   const el = document.elementsFromPoint(e.clientX, e.clientY).find(x => x.classList && x.classList.contains("slot"));
-  if (!el) return;
+  if (!el || rows.indexOf(el) < 0) return;
   fillTo = rows.indexOf(el);
   const [a, b] = [Math.min(fillFrom, fillTo), Math.max(fillFrom, fillTo)];
   rows.forEach((r, i) => {
@@ -501,10 +556,10 @@ function applyPlan(src, field, label) {
   snapshotForUndo();
   let n = 0, skipped = 0;
   Object.entries(src.slots).forEach(([t, s]) => {
-    const v = s[field]; if (!v || !TIMES.includes(t)) return;
+    const v = s[field]; if (!v || !ALL_TIMES.includes(t)) return;
     const cur = day.slots[t] || { p: "", d: "" };
     if (cur.p) { skipped++; return; }
-    day.slots[t] = { p: v, d: cur.d || "" }; n++;
+    day.slots[t] = cur.b ? { p: v, d: cur.d || "", b: true } : { p: v, d: cur.d || "" }; n++;
   });
   renderDay(); queueSave("day");
   toast(`${n} Zeitblöcke ${label} übernommen${skipped ? ` (${skipped} schon belegt, nicht überschrieben)` : ""}`);
@@ -616,8 +671,9 @@ function renderOverview() {
   const rowsDef = [
     ["Fokus", d => d.focus.text.trim() ? `<td class="${d.focus.done ? "ok" : ""}"><span class="f">${d.focus.done ? "✓ " : ""}${esc(d.focus.text)}</span></td>` : `<td class="sub">–</td>`],
     ["To-dos", d => { const t = [...d.cream, ...d.cherries, ...d.more].filter(x => x.t.trim()); const n = t.filter(x => x.d).length; return t.length ? `<td class="${n === t.length ? "ok" : ""}">${n} / ${t.length}</td>` : `<td class="sub">–</td>`; }],
-    ["Plan umgesetzt", d => { const s = Object.values(d.slots); const p = s.filter(x => x.p).length, m = s.filter(x => x.p && x.d).length; return p ? `<td>${m} / ${p}</td>` : `<td class="sub">–</td>`; }],
-    ["Getrackt", d => { const n = Object.values(d.slots).filter(x => x.d).length; return n ? `<td>${(n / 4).toLocaleString("de-CH")} h</td>` : `<td class="sub">–</td>`; }],
+    ["Plan umgesetzt", d => { const s = Object.values(d.slots).filter(x => !x.b); const p = s.filter(x => x.p).length, m = s.filter(x => x.p && x.d).length; return p ? `<td>${m} / ${p}</td>` : `<td class="sub">–</td>`; }],
+    ["Getrackt", d => { const n = Object.values(d.slots).filter(x => x.d && !x.b).length; return n ? `<td>${(n / 4).toLocaleString("de-CH")} h</td>` : `<td class="sub">–</td>`; }],
+    ["Pausen", d => { const n = Object.values(d.slots).filter(x => x.b).length; return n ? `<td>${fmtDur(n * 15)}</td>` : `<td class="sub">–</td>`; }],
     ["Gewohnheiten", d => { const hs = week.habits.filter(h => h.name.trim()); return hs.length ? `<td>${hs.filter(h => h.days[weekday(d.date)]).length} / ${hs.length}</td>` : `<td class="sub">–</td>`; }],
     ["Stimmung", d => { const m = [...d.moods, d.moodOther].filter(Boolean); return m.length ? `<td><span class="f">${esc(m.join(", "))}</span></td>` : `<td class="sub">–</td>`; }],
     ["Selbsteinschätzung", d => d.selfRating ? `<td>${d.selfRating} / 10</td>` : `<td class="sub">–</td>`],
@@ -629,14 +685,15 @@ function renderOverview() {
 
   // Zeitraster
   let html = `<div></div>` + weekDays.map((d, i) => `<div class="hd" data-open="${d.date}">${DAY_SHORT[i]}</div>`).join("");
-  TIMES.forEach(t => {
+  const hs = Math.min(...weekDays.map(d => rangeOf(d).start)), he = Math.max(...weekDays.map(d => rangeOf(d).end));
+  ALL_TIMES.filter(t => toMin(t) >= hs && toMin(t) < he).forEach(t => {
     html += `<div class="tm">${t.endsWith(":00") ? t : ""}</div>`;
-    weekDays.forEach(d => { const s = d.slots[t] || {}; html += `<div class="c${s.p ? " p" : ""}${s.d ? " d" : ""}" title="${d.date} ${t}${s.p ? " · Plan: " + esc(s.p) : ""}${s.d ? " · Gemacht: " + esc(s.d) : ""}"></div>`; });
+    weekDays.forEach(d => { const s = d.slots[t] || {}; html += `<div class="c${s.b ? " b" : `${s.p ? " p" : ""}${s.d ? " d" : ""}`}" title="${d.date} ${t}${s.b ? " · Pause" : ""}${s.p ? " · Plan: " + esc(s.p) : ""}${s.d ? " · Gemacht: " + esc(s.d) : ""}"></div>`; });
   });
   $("heat").innerHTML = html;
 
   // Kennzahlen Woche
-  const all = weekDays.flatMap(d => Object.values(d.slots));
+  const all = weekDays.flatMap(d => Object.values(d.slots)).filter(s => !s.b);
   const planned = all.filter(s => s.p).length, met = all.filter(s => s.p && s.d).length, tracked = all.filter(s => s.d).length;
   const focusDone = weekDays.filter(d => d.focus.done).length;
   const habitTotal = week.habits.filter(h => h.name.trim()).length * 7, habitDone = week.habits.filter(h => h.name.trim()).reduce((a, h) => a + h.days.filter(Boolean).length, 0);
@@ -672,22 +729,27 @@ $("habitsFromLast").onclick = async () => {
 
 /* ================= Navigation ================= */
 function setView(v) {
+  if (!["day", "week", "goals"].includes(v)) v = "day";
   view = v;
-  $("dayView").hidden = v !== "day"; $("weekView").hidden = v !== "week";
+  $("dayView").hidden = v !== "day"; $("weekView").hidden = v !== "week"; $("goalsView").hidden = v !== "goals";
   $("tabDay").setAttribute("aria-selected", String(v === "day"));
   $("tabWeek").setAttribute("aria-selected", String(v === "week"));
+  $("tabGoals").setAttribute("aria-selected", String(v === "goals"));
   clearSel();
   if (v === "week") renderWeek();
+  if (v === "goals") goals.render();
   try { localStorage.setItem("tagesplaner:view", v); } catch {}
 }
 $("tabDay").onclick = () => setView("day");
 $("tabWeek").onclick = () => setView("week");
+$("tabGoals").onclick = () => setView("goals");
 $("prev").onclick = () => loadDate(addDays(current, view === "week" ? -7 : -1));
 $("next").onclick = () => loadDate(addDays(current, view === "week" ? 7 : 1));
 $("today").onclick = () => loadDate(todayIso());
 $("datePick").addEventListener("change", e => { if (e.target.value) loadDate(e.target.value); });
 $("jumpNow").onclick = async () => {
   if (current !== todayIso()) await loadDate(todayIso());
+  $("planBox").open = true;
   const n = slotsHost.querySelector(".slot.now") || rows[0];
   n.scrollIntoView({ block: "center", behavior: "smooth" });
   n.querySelector(".d").focus({ preventScroll: true });
@@ -829,9 +891,9 @@ $("mails").addEventListener("click", e => {
     const now = new Date(), nm = now.getHours() * 60 + now.getMinutes();
     let start = selRange() ? selRange()[0]
       : current === todayIso() ? Math.max(0, TIMES.findIndex(t => { const [h, m] = t.split(":").map(Number); return h * 60 + m + 15 > nm; }))
-      : TIMES.indexOf("08:00");
+      : Math.max(0, TIMES.indexOf("08:00"));
     if (start < 0) start = TIMES.length - 1;
-    const i = rows.findIndex((r, k) => k >= start && !r.querySelector(".p").value.trim());
+    const i = rows.findIndex((r, k) => k >= start && !r.classList.contains("pause") && !r.querySelector(".p").value.trim());
     if (i < 0) { undoState = null; return toast("Kein freier Zeitblock mehr ab dieser Zeit.", false); }
     rows[i].querySelector(".p").value = text; slotFromRow(rows[i]);
     rows[i].scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -841,10 +903,29 @@ $("mails").addEventListener("click", e => {
   renderDay(); queueSave("day");
 });
 
+/* ================= Bereiche auf-/zuklappen ================= */
+// Zustand pro Bereich nur in diesem Browser (Komfort, keine Planer-Daten)
+document.querySelectorAll("details[data-fold]").forEach(d => {
+  try { const v = localStorage.getItem("tagesplaner:fold:" + d.dataset.fold); if (v != null) d.open = v === "1"; } catch {}
+  d.addEventListener("toggle", () => { try { localStorage.setItem("tagesplaner:fold:" + d.dataset.fold, d.open ? "1" : "0"); } catch {} });
+});
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-foldall]"); if (!b) return;
+  const open = b.dataset.foldall === "1";
+  b.closest(".view").querySelectorAll("details[data-fold], details.gmail").forEach(d => { d.open = open; });
+});
+
+/* Ziele: Bereiche in Tag, Woche und Zielübersicht */
+goals.mount($("dayGoals"), "day");
+goals.mount($("weekGoals"), "week");
+goals.mount($("goalsView"), "tree");
+
 /* ================= Start ================= */
 async function loadMeta() {
-  const [v, s] = await Promise.all([store.get("meta", "vocab"), store.get("meta", "settings")]);
+  const [v, s, g] = await Promise.all([store.get("meta", "vocab"), store.get("meta", "settings"), store.get("meta", "goals")]);
   meta.vocab = v || {}; meta.templates = (s && s.templates) || {}; meta.habitNames = (s && s.habitNames) || [];
+  meta.range = s && s.range && s.range.end > s.range.start ? s.range : null;
+  goals.load(g);
   ac.load(meta.vocab);
   // Erste Nutzung: Vorschläge aus den letzten 14 Tagen lernen
   if (!v || !Object.keys(v.slot || {}).length) {
