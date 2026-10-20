@@ -37,6 +37,7 @@
         <nav class="tabs" role="tablist">
           <button role="tab" id="tabDay" aria-selected="true">Tag</button>
           <button role="tab" id="tabWeek" aria-selected="false">Woche</button>
+          <button role="tab" id="tabGoals" aria-selected="false">Ziele</button>
         </nav>
       </div>
       <div class="datenav">
@@ -79,11 +80,16 @@
       <span class="sep"></span>
       <button class="btn small" id="tplApply">Vorlage einfügen</button>
       <button class="btn small" id="tplSave">Als Vorlage speichern</button>
+      <span class="sep"></span>
+      <button class="btn small" data-foldall="1">Alle Bereiche auf</button>
+      <button class="btn small" data-foldall="0">Alle zu</button>
     </div>
 
     <div class="grid">
       <section class="sheet" aria-label="Journal">
-        <div class="pair">
+        <details class="fold" data-fold="journal" open>
+        <summary><span class="label">Dankbarkeit &amp; Affirmationen</span></summary>
+        <div class="fold-body pair">
           <div class="col">
             <h3>Ich bin dankbar für:</h3>
             <input type="text" id="g0" data-k="grateful.0" data-ac="text">
@@ -100,19 +106,35 @@
             <input type="text" id="a1" data-k="affirm.1" data-ac="text">
           </div>
         </div>
+        </details>
 
-        <div class="focus" id="focusBox">
-          <div class="head"><span aria-hidden="true">⟶</span><span class="label">Tages-Fokus</span></div>
+        <details class="fold focus" id="focusBox" data-fold="focus" open>
+          <summary class="head"><span aria-hidden="true">⟶</span><span class="label">Tages-Fokus</span></summary>
+          <div class="fold-body">
           <p>Das Kuchenstück – danach bin ich zufrieden und gestärkt für den Tag:</p>
           <div class="weekgoals sub" id="weekGoalsHint"></div>
           <div class="row">
             <textarea id="focusText" data-k="focus.text" rows="2" placeholder="Die eine Sache, die heute zählt"></textarea>
             <input type="checkbox" class="check" id="focusDone" data-k="focus.done" aria-label="Tages-Fokus erledigt">
           </div>
-        </div>
+          </div>
+        </details>
 
-        <div class="todo">
-          <div class="label">To-do-Liste</div>
+        <details class="fold" data-fold="dayGoals" open id="dayGoals">
+          <summary><span class="label">Ziele &amp; Etappen</span><span class="sub" data-gl="info"></span></summary>
+          <div class="fold-body goal-scope">
+            <div data-gl="list"></div>
+            <form class="gl-add" data-gl="add">
+              <input type="text" data-gl="title" placeholder="Neues Tagesziel für diesen Tag" aria-label="Neues Tagesziel">
+              <select data-gl="parent" aria-label="Gehört zu"></select>
+              <button class="btn small">+ Tagesziel</button>
+            </form>
+          </div>
+        </details>
+
+        <details class="fold" data-fold="todo" open>
+          <summary><span class="label">To-do-Liste</span></summary>
+          <div class="fold-body todo">
           <h4>Die Sahnehaube:</h4>
           <div id="cream"></div>
           <h4>Die Kirschen obendrauf:</h4>
@@ -121,24 +143,25 @@
         <div id="more"></div>
         <button class="btn small addrow" id="addMore">+ Zeile</button>
           <label class="habit"><input type="checkbox" class="check" id="habit" data-k="habit"> Gewohnheits-Tracker genutzt?</label>
-        </div>
+          </div>
+        </details>
 
-        <div class="todo">
-          <div class="label">Gewohnheiten heute</div>
-          <div id="habitsToday" class="habits-today"></div>
-        </div>
+        <details class="fold" data-fold="habitsToday" open>
+          <summary><span class="label">Gewohnheiten heute</span></summary>
+          <div class="fold-body"><div id="habitsToday" class="habits-today"></div></div>
+        </details>
 
-        <div class="todo">
-          <div class="label">To-relax-Liste</div>
-          <div id="relax"></div>
-        </div>
+        <details class="fold" data-fold="relax" open>
+          <summary><span class="label">To-relax-Liste</span></summary>
+          <div class="fold-body todo"><div id="relax"></div></div>
+        </details>
 
         <div class="quote" id="quote"></div>
 
-        <div class="notes">
-          <label class="label" for="ideas">Gedanken, Ideen &amp; Erfolge</label>
-          <textarea id="ideas" data-k="ideas" rows="4" placeholder="Was lief gut? Was habe ich gelernt?"></textarea>
-        </div>
+        <details class="fold" data-fold="ideas" open>
+          <summary><span class="label">Gedanken, Ideen &amp; Erfolge</span></summary>
+          <div class="fold-body notes"><textarea id="ideas" data-k="ideas" rows="4" aria-label="Gedanken, Ideen und Erfolge" placeholder="Was lief gut? Was habe ich gelernt?"></textarea></div>
+        </details>
       </section>
 
       <section class="sheet" aria-label="Termine und Zeitplan">
@@ -156,21 +179,28 @@
             <ul class="mails" id="mails"></ul>
           </div>
         </details>
-        <div class="notes">
-          <label class="label" for="appts">Termine &amp; Notizen</label>
-          <textarea id="appts" data-k="appts" rows="3" placeholder="z. B. 10:00 Zahnarzt · Paket abholen"></textarea>
-        </div>
+        <details class="fold" data-fold="appts" open>
+          <summary><span class="label">Termine &amp; Notizen</span></summary>
+          <div class="fold-body notes"><textarea id="appts" data-k="appts" rows="3" aria-label="Termine und Notizen" placeholder="z. B. 10:00 Zahnarzt · Paket abholen"></textarea></div>
+        </details>
+        <details class="fold" data-fold="plan" open id="planBox">
+        <summary><span class="label">Zeitplan</span><span class="sub" id="rangeInfo"></span></summary>
+        <div class="fold-body plan">
         <div class="plan-head">
-          <div>
-            <div class="label">Zeitplan</div>
-            <div class="sub">05:15 – 20:15. Zeiten antippen/ziehen markiert mehrere Zeilen. Das Quadrat am Feld ziehen füllt nach unten aus – wie in Excel.</div>
+          <div class="range">
+            <label>von <select id="rangeStart" aria-label="Zeitplan beginnt um"></select></label>
+            <label>bis <select id="rangeEnd" aria-label="Zeitplan endet um"></select></label>
+            <span class="sub" id="rangeOut"></span>
           </div>
           <button class="btn small" id="jumpNow">Zur aktuellen Zeit</button>
         </div>
+        <div class="sub">Zeiten antippen/ziehen markiert mehrere Zeilen – dann z. B. „Pause“. Das Quadrat am Feld ziehen füllt nach unten aus – wie in Excel. Der Zeitraum gilt für diesen Tag und als Vorgabe für neue Tage; Einträge außerhalb bleiben erhalten.</div>
+        <button class="btn small range-more" id="rangeEarlier">▲ 1 Stunde früher</button>
         <div class="selbar" id="selbar" hidden>
           <span id="selInfo"></span>
           <button class="btn small" data-sel="fillPlan">Plan ausfüllen</button>
           <button class="btn small" data-sel="planToDone">Plan → Gemacht</button>
+          <button class="btn small" data-sel="pause">Pause</button>
           <button class="btn small" data-sel="copy">Kopieren</button>
           <button class="btn small" data-sel="paste">Einfügen</button>
           <button class="btn small" data-sel="clear">Leeren</button>
@@ -180,27 +210,36 @@
           <div class="slot-h" role="row"><div>Zeit</div><div>Geplant</div><div>Gemacht</div><div></div></div>
           <div class="fill-handle" id="fillHandle" hidden title="Ziehen zum Ausfüllen"></div>
         </div>
+        <div class="range-row">
+          <button class="btn small range-more" id="rangeLater">▼ 1 Stunde später</button>
+          <button class="btn small" id="rangeFit" hidden></button>
+        </div>
         <div class="legend">
           <span><i class="lg-met"></i>gemacht</span>
           <span><i class="lg-miss"></i>geplant, nicht eingetragen</span>
           <span><i class="lg-now"></i>jetzt</span>
+          <span><i class="lg-pause"></i>Pause</span>
           <span><i class="lg-sel"></i>markiert</span>
         </div>
-        <div class="load" id="load" aria-label="Auslastung des Tages">
-          <div>
-            <div class="label">Auslastung</div>
-            <div class="sub">Zeit pro Eintrag – bei „Thema: Detail“ zählt nur der Teil vor dem Doppelpunkt.</div>
-          </div>
+        </div>
+        </details>
+        <details class="fold" data-fold="load" open>
+          <summary><span class="label">Auslastung</span></summary>
+          <div class="fold-body load" id="load" aria-label="Auslastung des Tages">
+          <div class="sub">Zeit pro Eintrag – bei „Thema: Detail“ zählt nur der Teil vor dem Doppelpunkt.</div>
           <div class="load-cols">
             <div class="load-col"><h4>Geplant</h4><ul id="loadPlan"></ul></div>
             <div class="load-col"><h4>Gemacht</h4><ul id="loadDone"></ul></div>
           </div>
-        </div>
+          </div>
+        </details>
       </section>
     </div>
 
     <section class="sheet" aria-label="Tages-Reflexion">
-      <div class="label spaced">Tages-Reflexion</div>
+      <details class="fold" data-fold="reflection" open>
+      <summary><span class="label spaced">Tages-Reflexion</span></summary>
+      <div class="fold-body">
       <div class="refl">
         <div class="notes">
           <div class="label small-label">Heute fühlte ich mich …</div>
@@ -226,6 +265,8 @@
         <div class="scale" id="dayScale" role="radiogroup" aria-label="Tag bewerten 1 bis 10"></div>
         <textarea id="reflection" data-k="reflection" rows="4" placeholder="Was hat mir Energie gegeben, was hat sie gekostet? Was mache ich morgen anders?"></textarea>
       </div>
+      </div>
+      </details>
     </section>
   </main>
 
@@ -239,9 +280,32 @@
       <div class="stats" id="weekStats"></div>
     </div>
 
+    <div class="copybar">
+      <button class="btn small" data-foldall="1">Alle Bereiche auf</button>
+      <button class="btn small" data-foldall="0">Alle zu</button>
+    </div>
+
     <section class="sheet">
+      <details class="fold" data-fold="weekGoals" open id="weekGoals">
+        <summary><span class="label">Ziele &amp; Etappen der Woche</span><span class="sub" data-gl="info"></span></summary>
+        <div class="fold-body goal-scope">
+          <p class="sub">Teile Monats- und Jahresziele in Wochenetappen auf. Tagesziele legst du in der Tagesansicht an, alles zusammen siehst du unter „Ziele“.</p>
+          <div data-gl="list"></div>
+          <form class="gl-add" data-gl="add">
+            <input type="text" data-gl="title" placeholder="Neue Etappe für diese Woche" aria-label="Neues Wochenziel">
+            <select data-gl="parent" aria-label="Gehört zu"></select>
+            <button class="btn small">+ Wochenziel</button>
+          </form>
+        </div>
+      </details>
+    </section>
+
+    <section class="sheet">
+      <details class="fold" data-fold="habits" open>
+      <summary><span class="label">Gewohnheits-Tracker</span></summary>
+      <div class="fold-body">
       <div class="plan-head">
-        <div class="label">Gewohnheits-Tracker</div>
+        <span></span>
         <button class="btn small" id="habitsFromLast">Gewohnheiten der Vorwoche übernehmen</button>
       </div>
       <div class="scroll-x">
@@ -250,21 +314,29 @@
           <tbody></tbody>
         </table>
       </div>
+      </div>
+      </details>
     </section>
 
     <section class="sheet">
+      <details class="fold" data-fold="weekFocus" open>
+      <summary><span class="label">Wochen-Fokus</span></summary>
+      <div class="fold-body">
       <div>
-        <div class="label">Wochen-Fokus</div>
         <p class="sub">Das sind meine zwei großen Wochen-Ziele: Sie haben den größten Einfluss auf meinen Erfolg und landen Tag für Tag in meinem Fokus-Bereich.</p>
       </div>
       <div class="goals">
         <div class="goal" id="goal0"></div>
         <div class="goal" id="goal1"></div>
       </div>
+      </div>
+      </details>
     </section>
 
     <section class="sheet">
-      <div class="label">Wochenübersicht</div>
+      <details class="fold" data-fold="overview" open>
+      <summary><span class="label">Wochenübersicht</span></summary>
+      <div class="fold-body">
       <div class="scroll-x">
         <table class="overview" id="overview"></table>
       </div>
@@ -273,10 +345,14 @@
         <p class="sub">Umriss = geplant, gefüllt = gemacht. Tippe auf einen Tag, um ihn zu öffnen.</p>
         <div class="scroll-x"><div class="heat" id="heat"></div></div>
       </div>
+      </div>
+      </details>
     </section>
 
     <section class="sheet">
-      <div class="label spaced">Selbst-Reflexion</div>
+      <details class="fold" data-fold="weekReflection" open>
+      <summary><span class="label spaced">Selbst-Reflexion</span></summary>
+      <div class="fold-body">
       <div class="notes">
         <div class="label small-label">Sinn &amp; Motivation</div>
         <p class="sub">Wie habe ich letzte Woche meinen Wert gelebt?</p>
@@ -288,6 +364,40 @@
         <p class="sub">Was habe ich letzte Woche gut gemacht? Was mache ich diese Woche anders?</p>
         <textarea id="wins" data-wk="wins" rows="4"></textarea>
       </div>
+      </div>
+      </details>
+    </section>
+  </main>
+
+  <!-- ZIELE -->
+  <main id="goalsView" class="wrap view" hidden>
+    <div class="dayhead">
+      <div>
+        <div class="label spaced">Ziele</div>
+        <h1>Jahres-, Monats-, Wochen- und Tagesziele</h1>
+      </div>
+      <div class="stats" data-gl="stats"></div>
+    </div>
+
+    <section class="sheet">
+      <form class="gl-new" data-gl="new">
+        <input type="text" data-gl="title" placeholder="Neues Ziel, z. B. Halbmarathon laufen" aria-label="Neues Ziel">
+        <label>Ebene <select data-gl="level">
+          <option value="year">Jahresziel</option>
+          <option value="month" selected>Monatsziel</option>
+          <option value="week">Wochenziel</option>
+          <option value="day">Tagesziel</option>
+        </select></label>
+        <label>erreichen bis <input type="date" data-gl="due"></label>
+        <button class="btn primary">Ziel anlegen</button>
+      </form>
+      <p class="sub">Mit „+ Etappe“ teilst du ein Ziel auf: Jahresziel in Monatsziele, Monatsziel in Wochenetappen, Woche in Tagesziele. Die Frist schlägt das Ende des Zeitraums vor und lässt sich frei ändern. Daneben siehst du, wie viel Zeit bleibt.</p>
+      <div class="moods" role="group" aria-label="Ziele filtern">
+        <button type="button" data-gf="open" aria-pressed="true">Offen</button>
+        <button type="button" data-gf="all" aria-pressed="false">Alle</button>
+        <button type="button" data-gf="done" aria-pressed="false">Erreicht</button>
+      </div>
+      <div class="gl-tree" data-gl="tree"></div>
     </section>
   </main>
 
