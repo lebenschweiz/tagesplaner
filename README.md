@@ -61,7 +61,7 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 
 ## Google-Anmeldung einrichten (einmalig, ca. 10 Minuten, kostenlos)
 
-1. <https://console.firebase.google.com> → **Projekt hinzufügen** (z. B. `mein-tagesplaner`). Google Analytics kannst du ausschalten.
+1. <https://console.firebase.google.com> → **Projekt hinzufügen** (z. B. `tagejournal`). Google Analytics kannst du ausschalten.
 2. **Build → Authentication → Jetzt starten → Anbieter „Google“** aktivieren, Support-E-Mail wählen, speichern.
 3. **Authentication → Einstellungen → Autorisierte Domains → Domain hinzufügen:** `lebenschweiz.github.io`
 4. **Build → Firestore Database → Datenbank erstellen** → Standort `eur3 (europe-west)` → *Produktionsmodus*.
