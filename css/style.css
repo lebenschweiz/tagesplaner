@@ -228,7 +228,7 @@ dialog::backdrop{background:rgb(0 0 0 / .35)}
 .water button{width:22px;height:28px;border:1.5px solid var(--sel-line);border-radius:3px 3px 6px 6px;background:transparent;padding:0}
 .water button.on{background:var(--sel-line)}
 @media (max-width:700px){
-  .top{position:static}
+  .top{position:static;backdrop-filter:none;-webkit-backdrop-filter:none}
   .copybar{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
   .copybar .btn{flex:none}
   .dayhead h1{font-size:21px}
@@ -317,3 +317,16 @@ select,input[type=date]{font:inherit;color:var(--ink);background:var(--sheet);bo
 .gl-add{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto) auto;gap:8px;align-items:center;margin-top:4px}
 .gl-add select{max-width:220px;font-size:13px}
 @media (max-width:480px){.gl-add{grid-template-columns:1fr auto}.gl-add select{grid-column:1/-1;max-width:none;grid-row:2}}
+
+/* Rückgängig / Wiederholen */
+.undo-group{display:inline-flex;gap:4px}
+.undo-group .btn{font-size:15px}
+.undo-group .btn:disabled{opacity:.4;cursor:default;border-color:var(--line)}
+.undo-txt{font-size:13.5px}
+/* Handy: Kopfzeile scrollt weg, darum schwebt der Verlauf unten rechts */
+@media (max-width:700px){
+  .undo-txt{display:none}
+  .undo-group{position:fixed;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:40;flex-direction:column;gap:6px}
+  .undo-group .btn{width:46px;height:46px;justify-content:center;border-radius:50%;box-shadow:0 4px 16px rgb(0 0 0 / .18);font-size:20px;padding:0}
+  .undo-group .btn:disabled{opacity:0;pointer-events:none}
+}

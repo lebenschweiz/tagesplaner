@@ -133,24 +133,67 @@ document.addEventListener("visibilitychange", () => {
   else if (store && !dirty.size) loadDate(current, true);
 });
 
-/* ================= Rückgängig ================= */
-let undoState = null, toastTimer = null;
-function snapshotForUndo(label) { undoState = { day: clone(day), week: clone(week), goals: goals.data(), label }; }
+/* ================= Rückgängig / Wiederholen ================= */
+// Verlauf der Zustände vor jeder Änderung (Tag, Woche, Ziele, Zeitraum). Tippen im selben Feld
+// zählt als ein Schritt, solange keine 2 Sekunden Pause dazwischen liegt.
+const MAX_HISTORY = 100;
+let undoStack = [], redoStack = [], lastKey = null, lastAt = 0, toastTimer = null;
+const snap = () => ({ day: clone(day), week: clone(week), goals: goals.data(), range: meta.range ? { ...meta.range } : null });
+function remember(key = null) {
+  const now = Date.now();
+  if (key && key === lastKey && now - lastAt < 2000) { lastAt = now; return; }
+  lastKey = key; lastAt = now;
+  undoStack.push(snap());
+  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  redoStack = [];
+  paintUndo();
+}
+const snapshotForUndo = () => remember();
+function forgetLast() { undoStack.pop(); paintUndo(); }
+function clearHistory() { undoStack = []; redoStack = []; lastKey = null; paintUndo(); }
+function restore(st) {
+  day = st.day; week = st.week;
+  if (JSON.stringify(st.range) !== JSON.stringify(meta.range)) { meta.range = st.range; queueSave("meta"); }
+  if (JSON.stringify(st.goals) !== JSON.stringify(goals.data())) { goals.load(st.goals); queueSave("goals"); }
+  queueSave("day"); queueSave("week");
+  lastKey = null;
+  renderAll(); paintUndo();
+}
+function undo() {
+  const st = undoStack.pop();
+  if (!st) return toast("Nichts mehr rückgängig zu machen.", false);
+  redoStack.push(snap()); restore(st);
+  toast("Rückgängig gemacht", false);
+}
+function redo() {
+  const st = redoStack.pop();
+  if (!st) return toast("Nichts zum Wiederholen.", false);
+  undoStack.push(snap()); restore(st);
+  toast("Wiederholt", false);
+}
+function paintUndo() {
+  $("undoBtn").disabled = !undoStack.length;
+  $("redoBtn").disabled = !redoStack.length;
+}
 function toast(text, undoable = true) {
   $("toastText").textContent = text;
-  $("toastUndo").hidden = !undoable || !undoState;
+  $("toastUndo").hidden = !undoable || !undoStack.length;
   $("toast").hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { $("toast").hidden = true; }, 6000);
 }
-$("toastUndo").onclick = () => {
-  if (!undoState) return;
-  if (undoState.day.date === day.date) { day = undoState.day; queueSave("day"); }
-  if (undoState.week.monday === week.monday) { week = undoState.week; queueSave("week"); }
-  if (JSON.stringify(undoState.goals) !== JSON.stringify(goals.data())) { goals.load(undoState.goals); queueSave("goals"); }
-  undoState = null; $("toast").hidden = true;
-  renderAll();
-};
-goals.beforeChange = () => snapshotForUndo();
+$("toastUndo").onclick = () => { $("toast").hidden = true; undo(); };
+$("undoBtn").onclick = undo;
+$("redoBtn").onclick = redo;
+// Strg+Z / Strg+Umschalt+Z (Strg+Y): in Textfeldern bleibt das normale Rückgängig des Browsers
+document.addEventListener("keydown", e => {
+  if (!(e.ctrlKey || e.metaKey) || !store) return;
+  const k = e.key.toLowerCase(), a = document.activeElement;
+  if (k !== "z" && k !== "y") return;
+  if (a && (a.tagName === "TEXTAREA" || (a.tagName === "INPUT" && a.type === "text"))) return;
+  e.preventDefault();
+  (k === "y" || e.shiftKey) ? redo() : undo();
+});
+goals.beforeChange = key => remember(key);
 goals.afterDelete = n => toast(n > 1 ? `Ziel mit ${n - 1} Etappen gelöscht` : "Ziel gelöscht");
 
 /* ================= Aufbau Tagesansicht ================= */
@@ -179,6 +222,7 @@ function renderMore() {
   host.replaceChildren(...day.more.map((_, i) => itemRow("more", i, i ? "" : "Alles Weitere", "todo")));
 }
 $("addMore").onclick = () => {
+  remember();
   day.more.push({ t: "", d: false }); renderDay(); queueSave("day");
   $("more").lastElementChild.querySelector("input[type=text]").focus();
 };
@@ -188,6 +232,7 @@ $("dayScale").innerHTML = Array.from({ length: 10 }, (_, i) => `<button type="bu
 $("dayView").addEventListener("click", e => {
   const m = e.target.closest("[data-mood]"), w = e.target.closest("[data-water]"), r = e.target.closest("[data-rate]");
   if (!m && !w && !r) return;
+  remember();
   if (m) { const v = m.dataset.mood; day.moods = day.moods.includes(v) ? day.moods.filter(x => x !== v) : [...day.moods, v]; }
   if (w) { const n = +w.dataset.water; day.water = day.water === n ? n - 1 : n; }
   if (r) { const n = +r.dataset.rate; day.selfRating = day.selfRating === n ? null : n; }
@@ -236,6 +281,7 @@ function applyRange() {
   $("rangeFit").dataset.end = Math.max(end, ...outside.map(t => toMin(t) + 15));
 }
 function setRange(start, end) {
+  remember();
   start = Math.max(0, Math.min(1425, start)); end = Math.max(start + 15, Math.min(1440, end));
   day.range = { start, end }; meta.range = { start, end };
   clearSel(); applyRange(); decorateDay();
@@ -354,6 +400,7 @@ function slotFromRow(r) {
 $("dayView").addEventListener("input", e => {
   if (rendering) return;
   const el = e.target;
+  if (el.dataset.k || el.dataset.habit != null || el.closest(".slot")) remember(el.type === "checkbox" ? null : el.id || el.dataset.k);
   if (el.dataset.k) setPath(day, el.dataset.k, el.type === "checkbox" ? el.checked : el.value);
   else if (el.dataset.habit != null) {
     week.habits[+el.dataset.habit].days[weekday(current)] = el.checked;
@@ -366,6 +413,7 @@ slotsHost.addEventListener("click", e => {
   const b = e.target.closest(".cp"); if (!b) return;
   const r = b.closest(".slot"), p = r.querySelector(".p"), d = r.querySelector(".d");
   if (!p.value.trim()) { d.focus(); return; }
+  remember();
   d.value = p.value; slotFromRow(r); ac.learn("slot", p.value); decorateDay(); queueSave("day");
 });
 // Enter / Pfeile: nächste Zeile derselben Spalte (wie Excel)
@@ -713,6 +761,7 @@ $("weekView").addEventListener("click", e => {
 $("weekView").addEventListener("input", e => {
   if (rendering) return;
   const el = e.target; if (!el.dataset.wk) return;
+  remember(el.type === "checkbox" ? null : el.dataset.wk);
   setPath(week, el.dataset.wk, el.type === "checkbox" ? el.checked : el.value);
   if (el.dataset.wk.endsWith(".name")) { meta.habitNames = week.habits.map(h => h.name); queueSave("meta"); }
   decorateWeek(); queueSave("week");
@@ -764,7 +813,7 @@ async function loadDate(date, silent) {
   const mon = mondayOf(date);
   const [d, w] = await Promise.all([store.get("days", date), store.get("weeks", mon)]);
   if (seq !== loadSeq) return;
-  if (date !== current) { clearSel(); undoState = null; }
+  if (date !== current) { clearSel(); clearHistory(); }
   current = date;
   day = normDay(d, date);
   week = normWeek(w, mon);
@@ -894,7 +943,7 @@ $("mails").addEventListener("click", e => {
       : Math.max(0, TIMES.indexOf("08:00"));
     if (start < 0) start = TIMES.length - 1;
     const i = rows.findIndex((r, k) => k >= start && !r.classList.contains("pause") && !r.querySelector(".p").value.trim());
-    if (i < 0) { undoState = null; return toast("Kein freier Zeitblock mehr ab dieser Zeit.", false); }
+    if (i < 0) { forgetLast(); return toast("Kein freier Zeitblock mehr ab dieser Zeit.", false); }
     rows[i].querySelector(".p").value = text; slotFromRow(rows[i]);
     rows[i].scrollIntoView({ block: "nearest", behavior: "smooth" });
     toast(`Um ${TIMES[i]} eingeplant`);
@@ -949,6 +998,7 @@ async function start(s) {
     : "Ohne Konto: Einträge liegen nur in diesem Browser. Für alle Geräte mit Google anmelden.";
   setStatus("Lädt …");
   await loadMeta();
+  paintUndo();
   let v = "day"; try { v = localStorage.getItem("tagesplaner:view") || "day"; } catch {}
   await loadDate(todayIso());
   setView(v);

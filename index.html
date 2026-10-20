@@ -47,6 +47,10 @@
         <button id="today" class="btn">Heute</button>
       </div>
       <div class="account">
+        <span class="undo-group" role="group" aria-label="Verlauf">
+          <button id="undoBtn" class="btn" title="Rückgängig (Strg+Z)" aria-label="Rückgängig" disabled>↶<span class="undo-txt">Rückgängig</span></button>
+          <button id="redoBtn" class="btn icon" title="Wiederholen (Strg+Umschalt+Z)" aria-label="Wiederholen" disabled>↷</button>
+        </span>
         <span id="status" class="status" aria-live="polite"></span>
         <details class="menu">
           <summary class="btn" aria-label="Konto und Daten"><span id="userName">Konto</span> ▾</summary>

@@ -34,7 +34,7 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - **Einfügen aus Excel/Notizen**: Mehrere Zeilen einfügen verteilt sie untereinander (Tab trennt Geplant/Gemacht).
 - **Übernehmen**: Zeitplan von gestern, Zeitplan vom letzten gleichen Wochentag, offene To-dos von gestern, gestern Gemachtes als Plan.
 - **Vorlagen**: Einen Zeitplan als Vorlage speichern (z. B. „Arbeitstag“) und an anderen Tagen einfügen.
-- Jede dieser Aktionen lässt sich mit „Rückgängig“ zurücknehmen.
+- **Rückgängig / Wiederholen** (↶ ↷ oben, auf dem Handy unten rechts, oder `Strg+Z` / `Strg+Umschalt+Z`): nimmt jede Änderung zurück – Einträge, Häkchen, Ziele, Pausen, Zeitraum. Tippen im selben Feld zählt als ein Schritt. Der Verlauf gilt für den geöffneten Tag.
 
 **Gmail** (nach Google-Anmeldung)
 - Mails direkt im Tagesplaner: Ungelesen, Markiert, Heute, Wichtig
