@@ -66,6 +66,7 @@ export function createGoals({ onChange, today, onOpen }) {
   function changed() { onChange(); renderAll(); }
 
   function add({ title = "", level, due, parent = null }) {
+    api.beforeChange();
     const p = byId(parent);
     if (!due) due = periodEnd(level, ref < today() ? today() : ref);
     if (p && p.due && due > p.due) due = p.due;
@@ -173,11 +174,13 @@ export function createGoals({ onChange, today, onOpen }) {
     host.addEventListener("input", e => {
       const el = e.target, gid = el.closest("[data-gid]")?.dataset.gid, g = gid && byId(gid);
       if (!g || el.dataset.g !== "title") return;
+      api.beforeChange("goal:" + g.id);
       g.title = el.value; onChange();
     });
     host.addEventListener("change", e => {
       const el = e.target, gid = el.closest("[data-gid]")?.dataset.gid, g = gid && byId(gid);
-      if (!g || !el.dataset.g) return;
+      if (!g || !el.dataset.g || el.dataset.g === "title") return;
+      api.beforeChange();
       if (el.dataset.g === "done") {
         g.done = el.checked;
         if (g.done) g.doneAt = today(); else delete g.doneAt;
@@ -190,7 +193,6 @@ export function createGoals({ onChange, today, onOpen }) {
         g.level = el.value;
         descendants(g.id).forEach(k => { if (lvlIdx(k.level) <= lvlIdx(g.level)) k.level = LEVELS[Math.min(3, lvlIdx(g.level) + 1)]; });
       }
-      if (el.dataset.g === "title") return;
       changed();
     });
     host.addEventListener("click", e => {
@@ -211,7 +213,7 @@ export function createGoals({ onChange, today, onOpen }) {
       }
       if (a === "del") {
         const gone = new Set([g.id, ...descendants(g.id).map(k => k.id)]);
-        api.beforeChange(`„${g.title || LEVEL_NAMES[g.level]}“ gelöscht`);
+        api.beforeChange();
         items = items.filter(x => !gone.has(x.id));
         changed();
         api.afterDelete(gone.size);
