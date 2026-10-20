@@ -207,8 +207,8 @@ const allRows = ALL_TIMES.map(t => {
   r.dataset.t = t; r.setAttribute("role", "row");
   const id = t.replace(":", "");
   r.innerHTML = `<div class="t" role="cell">${t}</div>` +
-    `<input type="text" class="p" id="p${id}" data-ac="slot" aria-label="Geplant ${t}">` +
-    `<input type="text" class="d" id="d${id}" data-ac="slot" aria-label="Gemacht ${t}">` +
+    `<div class="pc"><input type="text" class="p" id="p${id}" data-ac="slot" aria-label="Geplant ${t}"><span class="du" aria-hidden="true"></span></div>` +
+    `<div class="dc"><input type="text" class="d" id="d${id}" data-ac="slot" aria-label="Gemacht ${t}"></div>` +
     `<button class="cp" title="Wie geplant erledigt" aria-label="Plan um ${t} als gemacht übernehmen">✓</button>`;
   slotsHost.insertBefore(r, $("fillHandle"));
   return r;
@@ -246,7 +246,6 @@ $("rangeEnd").addEventListener("change", e => { const en = +e.target.value, r = 
 $("rangeEarlier").onclick = () => { const r = rangeOf(day); setRange(r.start - 60, r.end); rows[0]?.scrollIntoView({ block: "nearest" }); };
 $("rangeLater").onclick = () => { const r = rangeOf(day); setRange(r.start, r.end + 60); };
 $("rangeFit").onclick = () => setRange(+$("rangeFit").dataset.start, +$("rangeFit").dataset.end);
-$("weekLetters").innerHTML = DAY_LETTERS.map(d => `<span>${d}</span>`).join("");
 document.querySelectorAll("[data-ac]").forEach(el => { el.setAttribute("list", "ac-" + el.dataset.ac); el.autocomplete = "off"; });
 
 /* ================= Render Tag ================= */
@@ -268,7 +267,12 @@ function renderDay() {
   applyRange();
   const d = parse(current), wd = weekday(current);
   $("longDate").textContent = d.toLocaleDateString("de-CH", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  [...$("weekLetters").children].forEach((s, i) => s.classList.toggle("on", i === wd));
+  $("dayKw").textContent = `KW ${isoWeek(current)}`;
+  const mon = mondayOf(current), tIso = todayIso();
+  $("weekLetters").innerHTML = DAY_SHORT.map((n, i) => {
+    const ds = addDays(mon, i);
+    return `<button type="button" data-goto="${ds}"${i === wd ? ' aria-current="date"' : ""}${ds === tIso ? ' class="today"' : ""} aria-label="${DAY_NAMES[i]}, ${parse(ds).toLocaleDateString("de-CH")}"><span>${n}</span><b>${parse(ds).getDate()}</b></button>`;
+  }).join("");
   $("copyWeekdayBtn").textContent = `Zeitplan vom letzten ${DAY_NAMES[wd]}`;
   const q = QUOTES[Math.floor(d.getTime() / 864e5) % QUOTES.length];
   const qq = document.createElement("q"); qq.textContent = q[0];
@@ -297,26 +301,50 @@ function decorateDay() {
   const t = todayIso(), isToday = current === t, past = current < t;
   const nowD = new Date(), nm = nowD.getHours() * 60 + nowD.getMinutes();
   let planned = 0, met = 0, tracked = 0, pauses = 0;
+  const same = (a, b) => a.toLocaleLowerCase("de-CH") === b.toLocaleLowerCase("de-CH");
   allRows.forEach(r => {
     const sm = toMin(r.dataset.t), pause = r.classList.contains("pause");
     const p = r.querySelector(".p").value.trim(), d = r.querySelector(".d").value.trim();
     if (pause) { pauses++; r.classList.remove("met", "missed"); }
     else { if (p) planned++; if (d) tracked++; if (p && d) met++; }
+    r.classList.toggle("has-p", !!p && !pause);
     r.classList.toggle("met", !!d && !pause);
+    r.classList.toggle("diff", !!d && !!p && !pause && !same(p, d));
     r.classList.toggle("missed", !pause && !!p && !d && (past || (isToday && sm + 15 <= nm)));
-    r.classList.toggle("now", isToday && nm >= sm && nm < sm + 15);
+    const isNow = isToday && nm >= sm && nm < sm + 15;
+    r.classList.toggle("now", isNow);
+    if (isNow) { r.style.setProperty("--nowp", ((nm - sm) / 15).toFixed(3)); r.dataset.now = hm(nm); }
   });
+  // Gleiche Einträge hintereinander wirken wie ein Block: Folgezeilen ohne Trennlinie, Dauer in der ersten Zeile
+  ["p", "d"].forEach(c => {
+    const key = x => x && !x.classList.contains("pause") ? x.querySelector("." + c).value.trim().toLocaleLowerCase("de-CH") : "";
+    rows.forEach((r, i) => {
+      const k = key(r), cont = !!k && key(rows[i - 1]) === k, more = !!k && key(rows[i + 1]) === k;
+      r.classList.toggle(c + "-cont", cont);
+      r.classList.toggle(c + "-more", more);
+      if (c !== "p") return;
+      let n = 1; if (k && !cont) while (key(rows[i + n]) === k) n++;
+      r.querySelector(".du").textContent = k && !cont && n > 1 ? fmtDur(n * 15) : "";
+    });
+  });
+  const miss = x => !!x && x.classList.contains("missed");
+  rows.forEach((r, i) => { r.classList.toggle("m-cont", miss(r) && miss(rows[i - 1])); r.classList.toggle("m-more", miss(r) && miss(rows[i + 1])); });
   $("focusBox").classList.toggle("done", !!day.focus.done);
   document.querySelectorAll("#dayView .item").forEach(it => it.classList.toggle("done", it.querySelector(".check").checked));
   const tasks = [...day.cream, ...day.cherries, ...day.more].filter(x => x.t.trim());
   const tasksDone = tasks.filter(x => x.d).length;
   const hrs = (tracked * 15 / 60).toLocaleString("de-CH", { maximumFractionDigits: 2 });
+  const wd = weekday(current), habits = week.habits.filter(h => h.name.trim()), habitsDone = habits.filter(h => h.days[wd]).length;
+  const meter = (k, v, of, pct, cls = "") => `<div class="meter"><span class="k">${k}</span><span class="v">${v}${of ? ` <small>${of}</small>` : ""}</span>` +
+    `<span class="bar"><i class="${cls}" style="width:${Math.max(0, Math.min(100, pct))}%"></i></span></div>`;
   $("stats").innerHTML =
-    `<span class="chip${day.focus.done ? " good" : ""}">Fokus <b>${day.focus.done ? "erledigt" : (day.focus.text.trim() ? "offen" : "–")}</b></span>` +
-    `<span class="chip${tasks.length && tasksDone === tasks.length ? " good" : ""}">To-dos <b>${tasksDone} / ${tasks.length}</b></span>` +
-    `<span class="chip">Plan umgesetzt <b>${met} / ${planned}</b></span>` +
-    `<span class="chip">Getrackt <b>${hrs} h</b></span>` +
-    (pauses ? `<span class="chip pause-chip">Pause <b>${fmtDur(pauses * 15)}</b></span>` : "");
+    meter("Plan umgesetzt", met, `von ${planned} Blöcken`, planned ? met / planned * 100 : 0) +
+    meter("Aufgaben erledigt", tasksDone, `von ${tasks.length}`, tasks.length ? tasksDone / tasks.length * 100 : 0, "g") +
+    meter(pauses ? `Getrackt · Pause ${fmtDur(pauses * 15)}` : "Getrackt", hrs, "h", rows.length ? tracked / rows.length * 100 : 0, "d") +
+    meter("Gewohnheiten", habitsDone, `von ${habits.length}`, habits.length ? habitsDone / habits.length * 100 : 0);
+  $("todoCount").textContent = tasks.length ? `${tasksDone} / ${tasks.length}` : "";
+  const journal = [...day.grateful, ...day.forward, ...day.affirm];
+  $("journalCount").textContent = `${journal.filter(x => x.trim()).length} von ${journal.length} ausgefüllt`;
   renderLoad();
   positionHandle();
 }
@@ -357,7 +385,7 @@ $("dayView").addEventListener("input", e => {
   if (el.dataset.k) setPath(day, el.dataset.k, el.type === "checkbox" ? el.checked : el.value);
   else if (el.dataset.habit != null) {
     week.habits[+el.dataset.habit].days[weekday(current)] = el.checked;
-    queueSave("week"); return;
+    queueSave("week"); decorateDay(); return;
   } else if (el.closest(".slot")) slotFromRow(el.closest(".slot"));
   else return;
   decorateDay(); queueSave("day");
@@ -747,6 +775,11 @@ $("prev").onclick = () => loadDate(addDays(current, view === "week" ? -7 : -1));
 $("next").onclick = () => loadDate(addDays(current, view === "week" ? 7 : 1));
 $("today").onclick = () => loadDate(todayIso());
 $("datePick").addEventListener("change", e => { if (e.target.value) loadDate(e.target.value); });
+$("weekLetters").addEventListener("click", e => { const b = e.target.closest("[data-goto]"); if (b) loadDate(b.dataset.goto); });
+$("planHelpBtn").onclick = () => { const h = $("planHelp"); h.hidden = !h.hidden; $("planHelpBtn").setAttribute("aria-expanded", String(!h.hidden)); };
+// Menü „Tag vorbereiten“ schließt nach einer Aktion und bei Klick daneben
+$("prepMenu").addEventListener("click", e => { if (e.target.closest(".prep-pop button")) $("prepMenu").open = false; });
+document.addEventListener("click", e => { if ($("prepMenu").open && !$("prepMenu").contains(e.target)) $("prepMenu").open = false; });
 $("jumpNow").onclick = async () => {
   if (current !== todayIso()) await loadDate(todayIso());
   $("planBox").open = true;
