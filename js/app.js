@@ -1,5 +1,6 @@
-import { watchAuth, signInWithGoogle, useLocal, cloudAvailable, connectGmail, cachedGmailToken, forgetGmailToken } from "./store.js";
+import { watchAuth, signInWithGoogle, useLocal, cloudAvailable, connectGoogle, cachedGoogleToken, forgetGoogleToken, GMAIL_SCOPE, CALENDAR_SCOPE } from "./store.js";
 import { listMessages, FILTERS } from "./gmail.js";
+import { listEvents } from "./gcal.js";
 import { createAutocomplete } from "./autocomplete.js";
 import { createGoals } from "./goals.js";
 
@@ -91,7 +92,7 @@ let view = "day";
 let current = todayIso();
 let day = blankDay(current);
 let week = blankWeek(mondayOf(current));
-let meta = { vocab: null, templates: {}, habitNames: [], range: null, columns: [] };
+let meta = { vocab: null, templates: {}, habitNames: [], range: null, columns: [], calAuto: true };
 let rendering = false;
 const timers = {};
 const dirty = new Set();
@@ -115,7 +116,7 @@ async function flush(what) {
     if (what === "week") { const w = clone(week); w.updatedAt = new Date().toISOString(); await store.set("weeks", w.monday, w); }
     if (what === "meta") {
       await store.set("meta", "vocab", meta.vocab || {});
-      await store.set("meta", "settings", { templates: meta.templates, habitNames: meta.habitNames, range: meta.range, columns: meta.columns });
+      await store.set("meta", "settings", { templates: meta.templates, habitNames: meta.habitNames, range: meta.range, columns: meta.columns, calAuto: meta.calAuto });
     }
     if (what === "goals") await store.set("meta", "goals", { ...goals.data(), updatedAt: new Date().toISOString() });
     if (!dirty.size) setStatus("Gespeichert " + new Date().toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" }));
@@ -889,6 +890,7 @@ async function loadDate(date, silent) {
   $("datePick").value = date;
   renderAll();
   if (!silent) setStatus(d ? "Geladen" : "Neuer Tag");
+  loadCalendar();
 }
 
 /* ================= Export / Import ================= */
@@ -933,7 +935,7 @@ function paintGmailFilters() {
 }
 async function loadGmail() {
   paintGmailFilters();
-  const token = cachedGmailToken();
+  const token = cachedGoogleToken(GMAIL_SCOPE);
   $("gmailRefresh").hidden = !token;
   if (!token) {
     $("mails").replaceChildren(); $("gmailCount").textContent = "";
@@ -949,7 +951,7 @@ async function loadGmail() {
     gmailState(mails.length ? "" : `Keine Mails unter „${FILTERS[gmailFilter].label}“.`, false);
   } catch (e) {
     $("mails").replaceChildren();
-    if (e.code === "expired") { forgetGmailToken(); gmailState("Die Verbindung ist nach einer Stunde abgelaufen.", true, "Neu verbinden"); }
+    if (e.code === "expired") { forgetGoogleToken(); gmailState("Die Verbindung ist nach einer Stunde abgelaufen.", true, "Neu verbinden"); }
     else if (e.code === "forbidden") gmailState("Google erlaubt den Zugriff noch nicht: " + e.message + " – siehe README, Abschnitt Gmail.", true, "Erneut versuchen");
     else gmailState("Mails konnten nicht geladen werden: " + e.message, true, "Erneut versuchen");
   } finally { gmailLoading = false; }
@@ -985,9 +987,9 @@ $("gmailFilters").addEventListener("click", e => {
 });
 $("gmailRefresh").onclick = loadGmail;
 $("gmailConnect").onclick = async () => {
-  if (cachedGmailToken()) return loadGmail();
+  if (cachedGoogleToken(GMAIL_SCOPE)) return loadGmail();
   gmailState("Bestätige den Zugriff im Google-Fenster …", false);
-  try { await connectGmail(); loadGmail(); }
+  try { await connectGoogle(); loadGmail(); loadCalendar(); }
   catch (e) {
     console.error(e);
     gmailState(e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request" ? "Abgebrochen." : "Verbinden fehlgeschlagen: " + (e.message || e.code), true);
@@ -1019,6 +1021,149 @@ $("mails").addEventListener("click", e => {
   renderDay(); queueSave("day");
 });
 
+/* ================= Google Kalender ================= */
+// Termine des Tages als Blöcke in „Geplant“. day.cal merkt sich pro Termin, welche Zeilen er belegt hat:
+// so kommt ein gelöschter Block nicht wieder, und ein verschobener oder abgesagter Termin räumt seine Blöcke auf,
+// solange sie noch unverändert sind. In „Gemacht“ und in belegte Zeilen wird nie geschrieben.
+const CAL_MARK = "📅 ";
+let calEvents = null, calDate = null, calSeq = 0;
+try { $("calBox").open = localStorage.getItem("tagesplaner:calOpen") !== "0"; } catch { $("calBox").open = true; }
+$("calBox").addEventListener("toggle", () => { try { localStorage.setItem("tagesplaner:calOpen", $("calBox").open ? "1" : "0"); } catch {} });
+
+function calState(msg, showConnect, connectLabel = "Kalender verbinden") {
+  $("calState").hidden = !msg;
+  $("calMsg").textContent = msg || "";
+  $("calConnect").hidden = !showConnect;
+  $("calConnect").textContent = connectLabel;
+}
+const calTimes = ev => {
+  const out = [], a = Math.floor(ev.start / 15) * 15, b = Math.max(a + 15, Math.ceil(ev.end / 15) * 15);
+  for (let m = a; m < b && m < 1440; m += 15) out.push(hm(m));
+  return out;
+};
+const fmtSpan = ev => ev.allDay ? "ganztägig" : `${hm(ev.start)} – ${ev.end === 1440 ? "24:00" : hm(ev.end)}`;
+
+/** Gleicht day mit den Terminen ab. ids: nur diese Termine (neu) eintragen; sonst alle. Gibt Zähler zurück. */
+function applyCalendar(events, ids) {
+  const known = day.cal && typeof day.cal === "object" ? day.cal : (day.cal = {});
+  const n = { added: 0, removed: 0, busy: 0 };
+  const clearOld = c => (c.t || []).filter(t => {
+    const s = day.slots[t]; if (!s || s.p !== c.p) return false;
+    s.p = ""; if (!s.d && !s.b && !s.x) delete day.slots[t];
+    return true;
+  }).length;
+  if (!ids) for (const [id, c] of Object.entries(known)) {
+    const ev = events.find(e => e.id === id);
+    if (ev && ev.updated === c.u) continue;
+    const cleared = clearOld(c); delete known[id];
+    if (!ev && cleared) n.removed++;
+  }
+  for (const ev of events) {
+    if (ids ? !ids.has(ev.id) : known[ev.id]) continue;
+    if (known[ev.id]) { clearOld(known[ev.id]); delete known[ev.id]; }
+    const p = CAL_MARK + ev.title;
+    if (ev.allDay) {
+      // Ganztägige Termine gehören zu „Termine & Notizen“, nicht in den Zeitplan
+      if (!day.appts.split("\n").some(l => l.trim() === p)) { day.appts = (day.appts.trim() ? day.appts.replace(/\s+$/, "") + "\n" : "") + p; n.added++; }
+      known[ev.id] = { u: ev.updated, p, t: [] };
+      continue;
+    }
+    const t = calTimes(ev).filter(x => { const s = day.slots[x]; return !s || (!s.p && !s.b); });
+    t.forEach(x => { day.slots[x] = Object.assign({ p: "", d: "" }, day.slots[x], { p }); });
+    known[ev.id] = { u: ev.updated, p, t };
+    if (t.length) n.added++; else n.busy++;
+  }
+  if (!Object.keys(known).length) delete day.cal;
+  return n;
+}
+function calToast(n, auto) {
+  const parts = [];
+  if (n.added) parts.push(`${n.added} ${n.added === 1 ? "Termin" : "Termine"} aus dem Kalender eingetragen`);
+  if (n.removed) parts.push(`${n.removed} abgesagt und entfernt`);
+  if (n.busy) parts.push(`${n.busy} nicht eingetragen (Zeit schon belegt)`);
+  if (parts.length) toast(parts.join(" · "), !auto);
+  else if (!auto) toast("Alle Termine stehen schon im Plan.", false);
+}
+function renderEvents() {
+  const evs = calEvents || [];
+  $("calCount").textContent = calEvents ? (evs.length ? `${evs.length} ${evs.length === 1 ? "Termin" : "Termine"}` : "keine Termine") : "";
+  $("calImport").hidden = !evs.length;
+  const known = day.cal || {};
+  $("events").replaceChildren(...evs.map(ev => {
+    const li = document.createElement("li");
+    li.className = "mail event"; li.dataset.id = ev.id;
+    const inPlan = known[ev.id] && (ev.allDay || known[ev.id].t.some(t => day.slots[t]?.p === known[ev.id].p));
+    li.innerHTML = `<div class="when"><i></i><span></span><span></span></div><div class="subj"></div>` +
+      `<div class="acts"><button class="btn${inPlan ? " done" : ""}" data-cal="add">${inPlan ? "✓ Im Plan" : "+ Zeitplan"}</button>` +
+      (ev.link ? `<a class="btn" target="_blank" rel="noopener">Öffnen</a>` : "") + `</div>`;
+    const [when, cal] = li.querySelectorAll(".when span");
+    when.textContent = fmtSpan(ev); cal.textContent = ev.calendar;
+    if (ev.color) li.querySelector(".when i").style.background = ev.color;
+    li.querySelector(".subj").textContent = ev.title;
+    if (ev.link) li.querySelector("a").href = ev.link;
+    return li;
+  }));
+}
+async function loadCalendar() {
+  if (!store) return;
+  $("calAuto").checked = meta.calAuto !== false;
+  const token = cachedGoogleToken(CALENDAR_SCOPE), date = current, seq = ++calSeq;
+  if (calDate !== date) { calEvents = null; calDate = date; }
+  $("calRefresh").hidden = !token;
+  if (!token) {
+    calEvents = null; renderEvents();
+    if (store.mode !== "cloud") return calState("Der Kalender braucht die Google-Anmeldung. Melde dich ab und mit Google wieder an.", false);
+    return calState("Verbinde deinen Google Kalender: Die Termine des Tages erscheinen hier und werden als Blöcke in „Geplant“ eingetragen. Nur Lesen – in deinem Kalender wird nichts geändert.", true);
+  }
+  if (!calEvents) calState("Lädt Termine …", false);
+  try {
+    const evs = await listEvents(token, date);
+    if (seq !== calSeq || date !== current) return;
+    calEvents = evs;
+    if ($("calAuto").checked && date >= todayIso()) {
+      const before = JSON.stringify([day.slots, day.appts, day.cal]);
+      const n = applyCalendar(evs);
+      if (JSON.stringify([day.slots, day.appts, day.cal]) !== before) { renderDay(); queueSave("day"); }
+      calToast(n, true);
+    }
+    renderEvents();
+    calState(evs.length ? "" : "Keine Termine an diesem Tag.", false);
+  } catch (e) {
+    if (seq !== calSeq) return;
+    calEvents = null; renderEvents();
+    if (e.code === "expired") { forgetGoogleToken(); calState("Die Verbindung ist nach einer Stunde abgelaufen. Neu verbinden, damit neue Termine eingetragen werden.", true, "Neu verbinden"); }
+    else if (e.code === "forbidden") calState("Google erlaubt den Zugriff noch nicht: " + e.message + " – siehe README, Abschnitt Google Kalender.", true, "Erneut verbinden");
+    else calState("Termine konnten nicht geladen werden: " + e.message, true, "Erneut versuchen");
+  }
+}
+$("calRefresh").onclick = loadCalendar;
+$("calConnect").onclick = async () => {
+  if ($("calConnect").textContent === "Erneut verbinden") forgetGoogleToken();
+  if (cachedGoogleToken(CALENDAR_SCOPE)) return loadCalendar();
+  calState("Bestätige den Zugriff im Google-Fenster …", false);
+  try { await connectGoogle(); loadCalendar(); loadGmail(); }
+  catch (e) {
+    console.error(e);
+    calState(e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request" ? "Abgebrochen." : "Verbinden fehlgeschlagen: " + (e.message || e.code), true);
+  }
+};
+$("calAuto").addEventListener("change", e => {
+  meta.calAuto = e.target.checked; queueSave("meta");
+  if (meta.calAuto) loadCalendar();
+});
+function importCalendar(ids) {
+  if (!calEvents || !calEvents.length) return;
+  snapshotForUndo();
+  const n = applyCalendar(calEvents, ids);
+  renderDay(); renderEvents(); queueSave("day");
+  calToast(n, false);
+}
+$("calImport").onclick = () => importCalendar(new Set(calEvents.map(e => e.id)));
+$("events").addEventListener("click", e => {
+  const b = e.target.closest("[data-cal]"); if (!b) return;
+  importCalendar(new Set([b.closest(".event").dataset.id]));
+});
+
 /* ================= Bereiche auf-/zuklappen ================= */
 // Zustand pro Bereich nur in diesem Browser (Komfort, keine Planer-Daten)
 document.querySelectorAll("details[data-fold]").forEach(d => {
@@ -1041,6 +1186,7 @@ async function loadMeta() {
   const [v, s, g] = await Promise.all([store.get("meta", "vocab"), store.get("meta", "settings"), store.get("meta", "goals")]);
   meta.vocab = v || {}; meta.templates = (s && s.templates) || {}; meta.habitNames = (s && s.habitNames) || [];
   meta.range = s && s.range && s.range.end > s.range.start ? s.range : null;
+  meta.calAuto = !(s && s.calAuto === false);
   meta.columns = (s && Array.isArray(s.columns) ? s.columns : []).filter(c => c && c.id && c.name).map(c => ({ id: String(c.id), name: String(c.name), open: c.open !== false }));
   buildColumns();
   goals.load(g);

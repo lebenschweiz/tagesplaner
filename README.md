@@ -45,6 +45,14 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - „+ To-do“ übernimmt den Betreff in die To-dos, „+ Zeitplan“ setzt ihn in den nächsten freien Zeitblock (ab jetzt oder ab der markierten Zeile)
 - Nur Lesezugriff. Mails werden nicht gespeichert – nur was du selbst übernimmst. Die Verbindung gilt jeweils ca. 1 Stunde, danach „Neu verbinden“.
 
+**Google Kalender** (nach Google-Anmeldung)
+- „Kalender verbinden“ holt die Termine des Tages aus allen Kalendern, die in Google Kalender sichtbar sind.
+- Termine werden automatisch als Blöcke in „Geplant“ eingetragen (📅 vor dem Titel), auf 15 Minuten gerundet. Ganztägige Termine landen unter „Termine & Notizen“. Abgelehnte Termine werden übersprungen.
+- Es wird nie überschrieben: belegte Zeilen und Pausen bleiben, „Gemacht“ wird nicht angefasst. Einen eingetragenen Block kannst du löschen, er kommt nicht wieder.
+- Wird ein Termin verschoben oder abgesagt, wandert bzw. verschwindet sein Block beim nächsten Abgleich – solange du ihn nicht geändert hast.
+- Automatisch nur für heute und kommende Tage (abschaltbar); für vergangene Tage „Alle eintragen“ oder „+ Zeitplan“ pro Termin.
+- Nur Lesezugriff, im Kalender wird nichts geändert. Eine Verbindung gilt für Gmail und Kalender zusammen, jeweils ca. 1 Stunde; danach „Neu verbinden“.
+
 **Woche**
 - Gewohnheits-Tracker (6 Gewohnheiten × 7 Tage), Namen werden in die nächste Woche übernommen
 - Ziele & Etappen der Woche: Wochenziele zu Monats-/Jahreszielen anlegen, Tagesziele der Woche, übergeordnete Ziele mit Restzeit
@@ -88,6 +96,16 @@ Firebase legt im Hintergrund ein Google-Cloud-Projekt mit demselben Namen an. Do
 
 Solange die App im Status „Test“ ist, können nur die eingetragenen Testnutzer Gmail verbinden – genau richtig für den persönlichen Gebrauch.
 
+## Google Kalender einrichten (einmalig, nach der Google-Anmeldung)
+
+Im selben Google-Cloud-Projekt wie bei Gmail:
+
+1. <https://console.cloud.google.com/apis/library/calendar-json.googleapis.com> öffnen, oben dein Firebase-Projekt (`tagejournal`) wählen → **Aktivieren**.
+2. **APIs & Dienste → OAuth-Zustimmungsbildschirm** („Google Auth Platform“) → **Datenzugriff → Bereiche hinzufügen:** `https://www.googleapis.com/auth/calendar.readonly` → Aktualisieren → Speichern. Deine Adresse muss unter **Zielgruppe → Testnutzer** stehen (wie bei Gmail).
+3. In der App unter „Termine & Notizen“ → **Google Kalender** → **„Kalender verbinden“**. Im Google-Fenster bei „nicht überprüft“ → **Weiter**, dann **beide Häkchen** (Gmail und Kalender) setzen → Weiter.
+
+Kommt „Google erlaubt den Zugriff noch nicht“, fehlt meist Schritt 1 (die API braucht nach dem Aktivieren ein paar Minuten) oder beim Verbinden wurde das Kalender-Häkchen nicht gesetzt – dann „Erneut verbinden“.
+
 ## Lokal ausprobieren
 
 ```bash
@@ -105,6 +123,7 @@ Für die Google-Anmeldung lokal zusätzlich `localhost` als autorisierte Domain 
 - `js/autocomplete.js` – Excel-artige Vorschläge
 - `js/goals.js` – Ziele mit Etappen und Fristen
 - `js/gmail.js` – Gmail lesen (Liste, Betreff, Absender)
+- `js/gcal.js` – Google Kalender lesen (Termine eines Tages)
 - `js/store.js` – Speicher (Firestore oder localStorage)
 - `js/firebase-config.js` – deine Firebase-Konfiguration
 - `firestore.rules` – Zugriffsregeln für die Datenbank
