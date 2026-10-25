@@ -13,6 +13,7 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - Gewohnheiten des Tages direkt abhaken (kommen aus der Wochenplanung)
 - Termine & Notizen, Gedanken, Ideen & Erfolge
 - **Zeitplan im 15-Minuten-Takt: Spalte „Geplant“ und „Gemacht“**
+  - **Eigene Bereiche**: Mit „+“ im Kopf des Zeitplans weitere Spalten neben Geplant und Gemacht anlegen (z. B. Energie, Ort, Notiz). Ein Tipp auf den Namen klappt die Spalte auf und zu (zugeklappt zeigt ein Balken, wo etwas eingetragen ist), ✎ benennt um oder löscht (mit „Rückgängig“). Die Bereiche und ob sie auf- oder zugeklappt sind, werden im Konto gespeichert und gelten auf allen Geräten.
   - Zeitraum frei wählbar (Standard 05:15 – 20:30): „von/bis“ oder „1 Stunde früher/später“. Gilt für den Tag und als Vorgabe für neue Tage; Einträge außerhalb bleiben erhalten.
   - **Pausen**: Zeilen markieren → „Pause“. Pausen werden schraffiert, getrennt gezählt und nicht als verpasst markiert.
   - Gleiche Einträge hintereinander erscheinen als ein Block mit Dauer; Gemacht ist grün (wie geplant) oder orange (anders gemacht)

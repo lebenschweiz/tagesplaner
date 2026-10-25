@@ -91,7 +91,7 @@ let view = "day";
 let current = todayIso();
 let day = blankDay(current);
 let week = blankWeek(mondayOf(current));
-let meta = { vocab: null, templates: {}, habitNames: [], range: null };
+let meta = { vocab: null, templates: {}, habitNames: [], range: null, columns: [] };
 let rendering = false;
 const timers = {};
 const dirty = new Set();
@@ -115,7 +115,7 @@ async function flush(what) {
     if (what === "week") { const w = clone(week); w.updatedAt = new Date().toISOString(); await store.set("weeks", w.monday, w); }
     if (what === "meta") {
       await store.set("meta", "vocab", meta.vocab || {});
-      await store.set("meta", "settings", { templates: meta.templates, habitNames: meta.habitNames, range: meta.range });
+      await store.set("meta", "settings", { templates: meta.templates, habitNames: meta.habitNames, range: meta.range, columns: meta.columns });
     }
     if (what === "goals") await store.set("meta", "goals", { ...goals.data(), updatedAt: new Date().toISOString() });
     if (!dirty.size) setStatus("Gespeichert " + new Date().toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" }));
@@ -135,7 +135,7 @@ document.addEventListener("visibilitychange", () => {
 
 /* ================= Rückgängig ================= */
 let undoState = null, toastTimer = null;
-function snapshotForUndo(label) { undoState = { day: clone(day), week: clone(week), goals: goals.data(), label }; }
+function snapshotForUndo(label) { undoState = { day: clone(day), week: clone(week), goals: goals.data(), columns: clone(meta.columns), label }; }
 function toast(text, undoable = true) {
   $("toastText").textContent = text;
   $("toastUndo").hidden = !undoable || !undoState;
@@ -147,6 +147,7 @@ $("toastUndo").onclick = () => {
   if (undoState.day.date === day.date) { day = undoState.day; queueSave("day"); }
   if (undoState.week.monday === week.monday) { week = undoState.week; queueSave("week"); }
   if (JSON.stringify(undoState.goals) !== JSON.stringify(goals.data())) { goals.load(undoState.goals); queueSave("goals"); }
+  if (JSON.stringify(undoState.columns) !== JSON.stringify(meta.columns)) { meta.columns = undoState.columns; buildColumns(); queueSave("meta"); }
   undoState = null; $("toast").hidden = true;
   renderAll();
 };
@@ -215,6 +216,69 @@ const allRows = ALL_TIMES.map(t => {
 });
 let rows = [];
 
+/* Eigene Bereiche im Zeitplan (z. B. „Energie“, „Ort“): Spalten neben Geplant/Gemacht.
+   Name und auf/zu gelten fürs ganze Konto (meta.settings.columns), die Werte stehen pro Zeile in slot.x */
+const colSel = el => el.classList.contains("p") ? ".p" : el.classList.contains("d") ? ".d" : `.x[data-col="${el.dataset.col}"]`;
+const openColSels = () => [".p", ".d", ...meta.columns.filter(c => c.open).map(c => `.x[data-col="${c.id}"]`)];
+function buildColumns() {
+  const cols = meta.columns, open = cols.filter(c => c.open).length;
+  slotsHost.style.setProperty("--grid", ["3.7em", "minmax(0,1fr)", "minmax(0,1fr)", ...cols.map(c => c.open ? "minmax(0,1fr)" : "2.2em"), "2.2em"].join(" "));
+  // Viele Spalten: Zeitplan wird breiter und lässt sich seitlich scrollen statt zu quetschen
+  slotsHost.style.minWidth = cols.length ? `${6 + (2 + open) * 7 + (cols.length - open) * 2.2}em` : "";
+  const head = slotsHost.querySelector(".slot-h");
+  head.querySelectorAll(".xh").forEach(n => n.remove());
+  cols.forEach(c => {
+    const h = document.createElement("div");
+    h.className = "xh" + (c.open ? "" : " shut"); h.dataset.col = c.id;
+    h.innerHTML = `<button type="button" class="xh-t" data-xtoggle aria-expanded="${c.open}" title="${c.open ? "Zuklappen" : "Aufklappen"}: ${esc(c.name)}">${esc(c.name)}</button>` +
+      (c.open ? `<button type="button" class="xh-e" data-xedit title="Umbenennen oder löschen" aria-label="Bereich ${esc(c.name)} bearbeiten">✎</button>` : "");
+    head.insertBefore(h, head.lastElementChild);
+  });
+  allRows.forEach(r => {
+    r.querySelectorAll(".xc").forEach(n => n.remove());
+    const cp = r.querySelector(".cp");
+    cols.forEach(c => {
+      const cell = document.createElement("div");
+      cell.className = "xc" + (c.open ? "" : " shut");
+      cell.innerHTML = `<input type="text" class="x" data-col="${c.id}" data-ac="slot" list="ac-slot" autocomplete="off" aria-label="${esc(c.name)} ${r.dataset.t}">`;
+      r.insertBefore(cell, cp);
+    });
+  });
+}
+function columnsChanged() { buildColumns(); renderDay(); queueSave("meta"); }
+function editColumn(id) {
+  const c = meta.columns.find(x => x.id === id);
+  $("tplTitle").textContent = c ? "Bereich bearbeiten" : "Eigenen Bereich hinzufügen";
+  $("tplBody").innerHTML = `<p class="sub">${c ? "Neuer Name für diese Spalte im Zeitplan." : "Eine weitere Spalte neben Geplant und Gemacht, z. B. Energie, Ort oder Notiz. Ein Tipp auf ihren Namen klappt sie auf und zu."}</p>` +
+    `<input type="text" id="colName" maxlength="40" placeholder="z. B. Energie" autocomplete="off">` +
+    (c ? `<div><button type="button" class="btn small del" id="colDel">Bereich löschen</button></div>` : "");
+  $("colName").value = c ? c.name : "";
+  $("colName").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); dlg.close("ok"); } };
+  $("tplOk").textContent = c ? "Speichern" : "Hinzufügen";
+  $("tplBody").onclick = e => {
+    if (e.target.id !== "colDel") return;
+    dlg.close("cancel");
+    snapshotForUndo();
+    meta.columns = meta.columns.filter(x => x.id !== id);
+    columnsChanged(); toast(`Bereich „${c.name}“ gelöscht`);
+  };
+  dlg.onclose = () => {
+    if (dlg.returnValue !== "ok") return;
+    const name = $("colName").value.trim(); if (!name) return;
+    if (c) c.name = name;
+    else meta.columns.push({ id: "c" + Date.now().toString(36), name, open: true });
+    columnsChanged();
+  };
+  dlg.showModal(); setTimeout(() => $("colName").focus(), 30);
+}
+$("addCol").onclick = () => editColumn(null);
+slotsHost.querySelector(".slot-h").addEventListener("click", e => {
+  const h = e.target.closest(".xh"); if (!h) return;
+  const c = meta.columns.find(x => x.id === h.dataset.col); if (!c) return;
+  if (e.target.closest("[data-xedit]")) return editColumn(c.id);
+  if (e.target.closest("[data-xtoggle]")) { c.open = !c.open; columnsChanged(); }
+});
+
 /* Zeitraum des Zeitplans: pro Tag gespeichert, zuletzt gewählter gilt als Vorgabe für neue Tage */
 const rangeOf = d => (d && d.range && d.range.end > d.range.start) ? d.range : (meta.range || DEFAULT_RANGE);
 $("rangeStart").innerHTML = ALL_TIMES.map((t, i) => `<option value="${i * 15}">${t}</option>`).join("");
@@ -262,6 +326,7 @@ function renderDay() {
   allRows.forEach(r => {
     const s = day.slots[r.dataset.t] || {};
     r.querySelector(".p").value = s.p || ""; r.querySelector(".d").value = s.d || "";
+    r.querySelectorAll(".x").forEach(x => { x.value = (s.x || {})[x.dataset.col] || ""; });
     r.classList.toggle("pause", !!s.b);
   });
   applyRange();
@@ -327,6 +392,19 @@ function decorateDay() {
       r.querySelector(".du").textContent = k && !cont && n > 1 ? fmtDur(n * 15) : "";
     });
   });
+  // Eigene Bereiche: gleiche Werte hintereinander ebenfalls als Block; zugeklappt zeigt ein Punkt, dass etwas drinsteht
+  meta.columns.forEach(c => {
+    const sel = `.x[data-col="${c.id}"]`;
+    const key = x => x ? (x.querySelector(sel)?.value || "").trim().toLocaleLowerCase("de-CH") : "";
+    rows.forEach((r, i) => {
+      const inp = r.querySelector(sel); if (!inp) return;
+      const k = key(r), cell = inp.parentElement;
+      cell.classList.toggle("on", !!k);
+      cell.classList.toggle("cont", !!k && key(rows[i - 1]) === k);
+      cell.classList.toggle("more", !!k && key(rows[i + 1]) === k);
+      cell.title = c.open ? "" : inp.value;
+    });
+  });
   const miss = x => !!x && x.classList.contains("missed");
   rows.forEach((r, i) => { r.classList.toggle("m-cont", miss(r) && miss(rows[i - 1])); r.classList.toggle("m-more", miss(r) && miss(rows[i + 1])); });
   $("focusBox").classList.toggle("done", !!day.focus.done);
@@ -377,7 +455,10 @@ setInterval(() => { if (view === "day") decorateDay(); }, 60000);
 /* ================= Eingaben Tag ================= */
 function slotFromRow(r) {
   const t = r.dataset.t, p = r.querySelector(".p").value, d = r.querySelector(".d").value, b = r.classList.contains("pause");
-  if (p || d || b) day.slots[t] = b ? { p, d, b } : { p, d }; else delete day.slots[t];
+  const x = {}; r.querySelectorAll(".x").forEach(i => { if (i.value) x[i.dataset.col] = i.value; });
+  const hasX = Object.keys(x).length > 0;
+  if (p || d || b || hasX) { const s = b ? { p, d, b } : { p, d }; if (hasX) s.x = x; day.slots[t] = s; }
+  else delete day.slots[t];
 }
 $("dayView").addEventListener("input", e => {
   if (rendering) return;
@@ -399,7 +480,7 @@ slotsHost.addEventListener("click", e => {
 // Enter / Pfeile: nächste Zeile derselben Spalte (wie Excel)
 slotsHost.addEventListener("keydown", e => {
   const inp = e.target; if (inp.tagName !== "INPUT") return;
-  const r = inp.closest(".slot"); const col = inp.classList.contains("p") ? ".p" : ".d";
+  const r = inp.closest(".slot"); const col = colSel(inp);
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") { e.preventDefault(); fillDown(col); return; }
   if (e.key !== "Enter" && e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
   if (e.key === "Enter" && inp.selectionStart !== inp.selectionEnd) inp.setSelectionRange(inp.value.length, inp.value.length);
@@ -414,15 +495,16 @@ slotsHost.addEventListener("paste", e => {
   const text = (e.clipboardData || window.clipboardData).getData("text");
   if (!/[\n\t]/.test(text.trim())) return;
   e.preventDefault();
-  pasteRows(text, rows.indexOf(inp.closest(".slot")), inp.classList.contains("p") ? 0 : 1);
+  pasteRows(text, rows.indexOf(inp.closest(".slot")), Math.max(0, openColSels().indexOf(colSel(inp))));
 });
 function pasteRows(text, startIdx, startCol) {
   snapshotForUndo();
   const lines = text.replace(/\r/g, "").replace(/\n$/, "").split("\n");
   lines.forEach((line, i) => {
     const r = rows[startIdx + i]; if (!r) return;
-    line.split("\t").slice(0, 2 - startCol).forEach((cell, j) => {
-      r.querySelector(startCol + j === 0 ? ".p" : ".d").value = cell.trim();
+    const sels = openColSels();
+    line.split("\t").slice(0, sels.length - startCol).forEach((cell, j) => {
+      r.querySelector(sels[startCol + j]).value = cell.trim();
     });
     slotFromRow(r);
   });
@@ -464,7 +546,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") clearSel(); 
 
 function selectedOrFocusCol(fallback = ".p") {
   const a = document.activeElement;
-  return a && a.closest && a.closest(".slot") && a.classList.contains("d") ? ".d" : fallback;
+  return a && a.closest && a.closest(".slot") && a.tagName === "INPUT" ? colSel(a) : fallback;
 }
 function fillDown(col) {
   const r = selRange(); if (!r || r[0] === r[1]) return;
@@ -493,7 +575,8 @@ $("selbar").addEventListener("click", async e => {
     toast("Plan als gemacht übernommen");
   }
   if (act === "copy") {
-    clip = rows.slice(r[0], r[1] + 1).map(x => [x.querySelector(".p").value, x.querySelector(".d").value]);
+    const sels = openColSels();
+    clip = rows.slice(r[0], r[1] + 1).map(x => sels.map(c => x.querySelector(c).value));
     const text = clip.map(c => c.join("\t")).join("\n");
     try { await navigator.clipboard.writeText(text); } catch {}
     toast(`${clip.length} Zeilen kopiert – Zielzeit markieren und „Einfügen“`, false);
@@ -511,7 +594,7 @@ $("selbar").addEventListener("click", async e => {
   }
   if (act === "clear") {
     snapshotForUndo();
-    for (let i = r[0]; i <= r[1]; i++) { rows[i].querySelector(".p").value = ""; rows[i].querySelector(".d").value = ""; rows[i].classList.remove("pause"); slotFromRow(rows[i]); }
+    for (let i = r[0]; i <= r[1]; i++) { rows[i].querySelectorAll("input").forEach(x => { x.value = ""; }); rows[i].classList.remove("pause"); slotFromRow(rows[i]); }
     toast("Zeilen geleert");
   }
   decorateDay(); queueSave("day");
@@ -534,7 +617,7 @@ function positionHandle() {
   h.hidden = false;
   h.style.left = (r.right - box.left - (h.offsetWidth || 12) / 2 - 2) + "px";
   h.style.top = (r.bottom - box.top - (h.offsetHeight || 12) / 2 - 1) + "px";
-  h.dataset.row = rows.indexOf(a.closest(".slot")); h.dataset.col = a.classList.contains("p") ? ".p" : ".d";
+  h.dataset.row = rows.indexOf(a.closest(".slot")); h.dataset.col = colSel(a);
 }
 slotsHost.addEventListener("focusin", positionHandle);
 slotsHost.addEventListener("focusout", () => setTimeout(() => { if (fillFrom == null && !slotsHost.contains(document.activeElement)) $("fillHandle").hidden = true; }, 150));
@@ -587,7 +670,7 @@ function applyPlan(src, field, label) {
     const v = s[field]; if (!v || !ALL_TIMES.includes(t)) return;
     const cur = day.slots[t] || { p: "", d: "" };
     if (cur.p) { skipped++; return; }
-    day.slots[t] = cur.b ? { p: v, d: cur.d || "", b: true } : { p: v, d: cur.d || "" }; n++;
+    day.slots[t] = Object.assign({}, cur, { p: v, d: cur.d || "" }); n++;
   });
   renderDay(); queueSave("day");
   toast(`${n} Zeitblöcke ${label} übernommen${skipped ? ` (${skipped} schon belegt, nicht überschrieben)` : ""}`);
@@ -958,6 +1041,8 @@ async function loadMeta() {
   const [v, s, g] = await Promise.all([store.get("meta", "vocab"), store.get("meta", "settings"), store.get("meta", "goals")]);
   meta.vocab = v || {}; meta.templates = (s && s.templates) || {}; meta.habitNames = (s && s.habitNames) || [];
   meta.range = s && s.range && s.range.end > s.range.start ? s.range : null;
+  meta.columns = (s && Array.isArray(s.columns) ? s.columns : []).filter(c => c && c.id && c.name).map(c => ({ id: String(c.id), name: String(c.name), open: c.open !== false }));
+  buildColumns();
   goals.load(g);
   ac.load(meta.vocab);
   // Erste Nutzung: Vorschläge aus den letzten 14 Tagen lernen
