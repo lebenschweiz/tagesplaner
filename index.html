@@ -89,6 +89,7 @@
       <span class="sep"></span>
       <a href="#planBox" class="z-day"><i></i>Zeitplan</a>
       <a href="#todoBox" class="z-day"><i></i>Aufgaben</a>
+      <a href="#asanaBox" class="z-day"><i></i>To do's</a>
       <a href="#apptBox" class="z-day"><i></i>Termine</a>
       <span class="sep"></span>
       <a href="#zoneEve" class="z-eve"><i></i>Festhalten</a>
@@ -203,6 +204,35 @@
               <div id="more"></div>
               <button class="btn small addrow" id="addMore">+ Aufgabe</button>
               <label class="habit"><input type="checkbox" class="check" id="habit" data-k="habit"> Gewohnheits-Tracker genutzt?</label>
+            </div>
+          </details>
+
+          <details class="fold card" data-fold="asana" open id="asanaBox">
+            <summary><span class="label">To do's</span><span class="sub" id="asanaCount">aus Asana</span></summary>
+            <div class="fold-body asana">
+              <div class="gmail-bar" id="asanaBar" hidden>
+                <div class="moods" id="asanaFilters" role="group" aria-label="To do's filtern"></div>
+                <button class="btn small" id="asanaRefresh">Aktualisieren</button>
+              </div>
+              <div id="asanaState" class="gmail-state">
+                <p class="sub" id="asanaMsg">Verknüpfe dein Asana-Konto, dann erscheinen hier alle deine offenen Aufgaben aus „Meine Aufgaben“. Abhaken hier hakt sie auch in Asana ab.</p>
+                <div class="asana-setup" id="asanaSetup">
+                  <ol class="sub">
+                    <li>In der <a href="https://app.asana.com/0/my-apps" target="_blank" rel="noopener">Asana-Entwicklerkonsole</a> auf „Neuer Zugriffstoken“ tippen, Name z. B. „Tagesplaner“.</li>
+                    <li>Den Schlüssel kopieren und hier einfügen.</li>
+                  </ol>
+                  <div class="asana-key">
+                    <input type="password" id="asanaToken" placeholder="Zugangsschlüssel einfügen" autocomplete="off" spellcheck="false" aria-label="Asana-Zugangsschlüssel">
+                    <button class="btn primary" id="asanaConnect">Asana verbinden</button>
+                  </div>
+                  <label class="sub asana-sync" id="asanaSyncLabel"><input type="checkbox" class="check" id="asanaSync" checked> Auf allen meinen Geräten verwenden (geschützt in meinem Konto gespeichert)</label>
+                </div>
+              </div>
+              <ul class="mails asana-list" id="asanaList"></ul>
+              <div class="asana-foot" id="asanaFoot" hidden>
+                <span class="sub" id="asanaInfo"></span>
+                <button class="btn small" id="asanaDisconnect">Trennen</button>
+              </div>
             </div>
           </details>
 

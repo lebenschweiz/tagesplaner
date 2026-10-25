@@ -1,5 +1,6 @@
 import { watchAuth, signInWithGoogle, useLocal, cloudAvailable, connectGmail, cachedGmailToken, forgetGmailToken } from "./store.js";
 import { listMessages, FILTERS } from "./gmail.js";
+import * as asana from "./asana.js";
 import { createAutocomplete } from "./autocomplete.js";
 import { createGoals } from "./goals.js";
 
@@ -888,6 +889,7 @@ async function loadDate(date, silent) {
   if (!w && meta.habitNames && meta.habitNames.some(Boolean)) week.habits.forEach((h, i) => { h.name = meta.habitNames[i] || ""; });
   $("datePick").value = date;
   renderAll();
+  if (asanaTasks.length) renderAsana();
   if (!silent) setStatus(d ? "Geladen" : "Neuer Tag");
 }
 
@@ -993,30 +995,200 @@ $("gmailConnect").onclick = async () => {
     gmailState(e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request" ? "Abgebrochen." : "Verbinden fehlgeschlagen: " + (e.message || e.code), true);
   }
 };
+/* Übernehmen aus Gmail oder Asana: als Aufgabe oder in den nächsten freien Zeitblock */
+function takeAsTodo(text) {
+  snapshotForUndo();
+  let slot = day.more.find(x => !x.t.trim());
+  if (!slot) { slot = { t: "", d: false }; day.more.push(slot); }
+  slot.t = text; slot.d = false;
+  toast("Als Aufgabe übernommen");
+  renderDay(); queueSave("day");
+  return true;
+}
+function takeIntoPlan(text) {
+  // Ab markierter Zeile, sonst ab jetzt (heute) bzw. 08:00: erster freier Plan-Block
+  const now = new Date(), nm = now.getHours() * 60 + now.getMinutes();
+  let start = selRange() ? selRange()[0]
+    : current === todayIso() ? Math.max(0, TIMES.findIndex(t => { const [h, m] = t.split(":").map(Number); return h * 60 + m + 15 > nm; }))
+    : Math.max(0, TIMES.indexOf("08:00"));
+  if (start < 0) start = TIMES.length - 1;
+  const i = rows.findIndex((r, k) => k >= start && !r.classList.contains("pause") && !r.querySelector(".p").value.trim());
+  if (i < 0) { toast("Kein freier Zeitblock mehr ab dieser Zeit.", false); return false; }
+  snapshotForUndo();
+  rows[i].querySelector(".p").value = text; slotFromRow(rows[i]);
+  rows[i].scrollIntoView({ block: "nearest", behavior: "smooth" });
+  toast(`Um ${TIMES[i]} eingeplant`);
+  renderDay(); queueSave("day");
+  return true;
+}
 $("mails").addEventListener("click", e => {
   const b = e.target.closest("[data-mail]"); if (!b || b.classList.contains("done")) return;
   const li = b.closest(".mail"), text = "✉ " + li.dataset.subject;
-  snapshotForUndo();
-  if (b.dataset.mail === "todo") {
-    let slot = day.more.find(x => !x.t.trim());
-    if (!slot) { slot = { t: "", d: false }; day.more.push(slot); }
-    slot.t = text; slot.d = false;
-    toast("Als To-do übernommen");
-  } else {
-    // Ab markierter Zeile, sonst ab jetzt (heute) bzw. 08:00: erster freier Plan-Block
-    const now = new Date(), nm = now.getHours() * 60 + now.getMinutes();
-    let start = selRange() ? selRange()[0]
-      : current === todayIso() ? Math.max(0, TIMES.findIndex(t => { const [h, m] = t.split(":").map(Number); return h * 60 + m + 15 > nm; }))
-      : Math.max(0, TIMES.indexOf("08:00"));
-    if (start < 0) start = TIMES.length - 1;
-    const i = rows.findIndex((r, k) => k >= start && !r.classList.contains("pause") && !r.querySelector(".p").value.trim());
-    if (i < 0) { undoState = null; return toast("Kein freier Zeitblock mehr ab dieser Zeit.", false); }
-    rows[i].querySelector(".p").value = text; slotFromRow(rows[i]);
-    rows[i].scrollIntoView({ block: "nearest", behavior: "smooth" });
-    toast(`Um ${TIMES[i]} eingeplant`);
-  }
+  if (!(b.dataset.mail === "todo" ? takeAsTodo(text) : takeIntoPlan(text))) return;
   gmailTaken.add(li.dataset.id + ":" + b.dataset.mail); markTaken(b);
-  renderDay(); queueSave("day");
+});
+
+/* ================= To do's aus Asana ================= */
+// Zugangsschlüssel: in diesem Browser (localStorage) und auf Wunsch in users/{uid}/secrets/asana.
+// "secrets" gehört nicht zu den exportierten Datenarten, landet also nie in der JSON-Datei.
+let asanaToken = "", asanaFilter = "all", asanaTasks = [], asanaLoading = false, asanaLoadedAt = 0;
+const asanaDone = new Set();
+try { asanaFilter = localStorage.getItem("tagesplaner:asanaFilter") || "all"; } catch {}
+if (!asana.FILTERS[asanaFilter]) asanaFilter = "all";
+$("asanaFilters").innerHTML = Object.entries(asana.FILTERS).map(([k, f]) => `<button type="button" data-af="${k}" aria-pressed="false">${f.label}</button>`).join("");
+
+async function initAsana() {
+  asanaToken = asana.localToken();
+  $("asanaSyncLabel").hidden = store.mode !== "cloud";
+  if (!asanaToken && store.mode === "cloud") {
+    try { asanaToken = (await store.get("secrets", "asana"))?.token || ""; } catch (e) { console.error(e); }
+    if (asanaToken) asana.saveLocalToken(asanaToken);
+  }
+  loadAsana();
+}
+function asanaState(msg, setup) {
+  $("asanaState").hidden = !msg && !setup;
+  $("asanaMsg").textContent = msg || "";
+  $("asanaSetup").hidden = !setup;
+  $("asanaBar").hidden = !!setup;
+  $("asanaFoot").hidden = !!setup;
+}
+const ASANA_INTRO = "Verknüpfe dein Asana-Konto, dann erscheinen hier alle deine offenen Aufgaben aus „Meine Aufgaben“. Abhaken hier hakt sie auch in Asana ab.";
+async function loadAsana() {
+  if (!asanaToken) {
+    asanaTasks = []; $("asanaList").replaceChildren(); $("asanaCount").textContent = "aus Asana";
+    return asanaState(ASANA_INTRO, true);
+  }
+  if (asanaLoading) return;
+  asanaLoading = true;
+  if (!asanaTasks.length) asanaState("Lädt deine Asana-Aufgaben …", false);
+  $("asanaRefresh").disabled = true;
+  try {
+    const r = await asana.listMyTasks(asanaToken);
+    asanaTasks = r.tasks; asanaLoadedAt = Date.now(); asanaDone.clear();
+    $("asanaInfo").textContent = `Verbunden${r.user ? " als " + r.user : ""} · Stand ${new Date().toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })}`;
+    renderAsana();
+  } catch (e) {
+    console.error(e);
+    if (e.code === "unauthorized") {
+      await forgetAsana();
+      asanaState("Asana hat den Zugangsschlüssel abgelehnt (abgelaufen oder widerrufen). Bitte einen neuen einfügen.", true);
+    } else {
+      asanaState("Asana konnte nicht geladen werden: " + e.message, false);
+    }
+  } finally { asanaLoading = false; $("asanaRefresh").disabled = false; }
+}
+function asanaTaken(name) {
+  const n = name.trim().toLowerCase();
+  const inTodos = [...day.cream, ...day.cherries, ...day.more].some(x => x.t.trim().toLowerCase() === n);
+  const inPlan = Object.values(day.slots || {}).some(s => (s.p || "").trim().toLowerCase() === n);
+  return { todo: inTodos, slot: inPlan };
+}
+function renderAsana() {
+  $("asanaFilters").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.af === asanaFilter)));
+  const today = todayIso();
+  const shown = asanaTasks.filter(t => asana.matches(t, asanaFilter, today));
+  const open = asanaTasks.filter(t => !asanaDone.has(t.id)).length;
+  $("asanaCount").textContent = `${open} offen`;
+  const fmtDue = d => {
+    if (d === today) return "heute";
+    if (d === addDays(today, 1)) return "morgen";
+    return parse(d).toLocaleDateString("de-CH", { day: "numeric", month: "short" });
+  };
+  const items = [];
+  let section = null;
+  shown.forEach(t => {
+    const sec = (t.workspace ? t.workspace + " · " : "") + t.section;
+    if (sec !== section) {
+      section = sec;
+      const h = document.createElement("li"); h.className = "asana-sec"; h.textContent = sec;
+      items.push(h);
+    }
+    const li = document.createElement("li");
+    const done = asanaDone.has(t.id), taken = asanaTaken(t.name);
+    li.className = "mail asana-task" + (done ? " done" : "");
+    li.dataset.id = t.id;
+    li.innerHTML = `<div class="asana-name"><input type="checkbox" class="check" data-at="done"${done ? " checked" : ""} aria-label="In Asana erledigt"><span></span></div>` +
+      `<div class="acts"><button class="btn${taken.todo ? " done" : ""}" data-at="todo">${taken.todo ? "✓ Aufgabe" : "+ Aufgabe"}</button>` +
+      `<button class="btn${taken.slot ? " done" : ""}" data-at="slot">${taken.slot ? "✓ Zeitplan" : "+ Zeitplan"}</button>` +
+      `<a class="btn" target="_blank" rel="noopener" data-at="open">Öffnen</a></div>` +
+      `<div class="snip"></div>`;
+    li.querySelector(".asana-name span").textContent = t.name;
+    li.querySelector("a").href = t.url;
+    const meta = [];
+    if (t.due) meta.push((t.due < today ? "überfällig · " : "fällig ") + fmtDue(t.due));
+    if (t.projects.length) meta.push(t.projects.join(", "));
+    const snip = li.querySelector(".snip");
+    snip.textContent = meta.join(" · ");
+    if (t.due && t.due <= today) snip.classList.add("late");
+    if (t.notes) li.title = t.notes.slice(0, 300);
+    items.push(li);
+  });
+  $("asanaList").replaceChildren(...items);
+  asanaState(shown.length ? "" : asanaFilter === "all" ? "Keine offenen Aufgaben in Asana. Schön!" : `Keine Aufgaben unter „${asana.FILTERS[asanaFilter].label}“.`, false);
+}
+async function forgetAsana() {
+  asanaToken = ""; asanaTasks = [];
+  asana.saveLocalToken("");
+  if (store.mode === "cloud") { try { await store.set("secrets", "asana", { token: "" }); } catch (e) { console.error(e); } }
+}
+
+$("asanaFilters").addEventListener("click", e => {
+  const b = e.target.closest("[data-af]"); if (!b) return;
+  asanaFilter = b.dataset.af;
+  try { localStorage.setItem("tagesplaner:asanaFilter", asanaFilter); } catch {}
+  renderAsana();
+});
+$("asanaRefresh").onclick = loadAsana;
+$("asanaToken").addEventListener("keydown", e => { if (e.key === "Enter") $("asanaConnect").click(); });
+$("asanaConnect").onclick = async () => {
+  const t = $("asanaToken").value.trim();
+  if (!t) return $("asanaToken").focus();
+  asanaState("Verbinde mit Asana …", false);
+  $("asanaSetup").hidden = true;
+  try {
+    await asana.listMyTasks(t).then(r => { asanaTasks = r.tasks; });
+  } catch (e) {
+    return asanaState(e.code === "unauthorized" ? "Dieser Zugangsschlüssel funktioniert nicht. Bitte prüfen und neu einfügen." : "Verbinden fehlgeschlagen: " + e.message, true);
+  }
+  asanaToken = t; $("asanaToken").value = "";
+  asana.saveLocalToken(t);
+  if (store.mode === "cloud" && $("asanaSync").checked) {
+    try { await store.set("secrets", "asana", { token: t, savedAt: new Date().toISOString() }); }
+    catch (e) { console.error(e); toast("Nur auf diesem Gerät gespeichert – die Cloud war nicht erreichbar.", false); }
+  }
+  asanaTasks = []; loadAsana();
+};
+$("asanaDisconnect").onclick = async () => {
+  await forgetAsana();
+  loadAsana();
+  toast("Asana getrennt. Den Schlüssel kannst du in Asana unter „Meine Apps“ auch ganz widerrufen.", false);
+};
+$("asanaList").addEventListener("click", async e => {
+  const el = e.target.closest("[data-at]"); if (!el) return;
+  const li = el.closest(".asana-task"), t = asanaTasks.find(x => x.id === li?.dataset.id);
+  if (!t) return;
+  const kind = el.dataset.at;
+  if (kind === "open") return;
+  if (kind === "done") {
+    const completed = el.checked;
+    completed ? asanaDone.add(t.id) : asanaDone.delete(t.id);
+    li.classList.toggle("done", completed);
+    $("asanaCount").textContent = `${asanaTasks.filter(x => !asanaDone.has(x.id)).length} offen`;
+    try { await asana.setCompleted(asanaToken, t.id, completed); toast(completed ? "In Asana erledigt" : "In Asana wieder offen", false); }
+    catch (err) {
+      el.checked = !completed; li.classList.toggle("done", !completed);
+      completed ? asanaDone.delete(t.id) : asanaDone.add(t.id);
+      $("asanaCount").textContent = `${asanaTasks.filter(x => !asanaDone.has(x.id)).length} offen`;
+      toast("Asana hat nicht geantwortet: " + err.message, false);
+    }
+    return;
+  }
+  if (el.classList.contains("done")) return;
+  if (kind === "todo" ? takeAsTodo(t.name) : takeIntoPlan(t.name)) renderAsana();
+});
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && store && asanaToken && Date.now() - asanaLoadedAt > 5 * 60 * 1000) loadAsana();
 });
 
 /* ================= Bereiche auf-/zuklappen ================= */
@@ -1071,6 +1243,7 @@ async function start(s) {
   await loadDate(todayIso());
   setView(v);
   loadGmail();
+  initAsana();
 }
 
 function showLogin(msg) {

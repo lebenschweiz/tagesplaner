@@ -45,6 +45,13 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - „+ To-do“ übernimmt den Betreff in die To-dos, „+ Zeitplan“ setzt ihn in den nächsten freien Zeitblock (ab jetzt oder ab der markierten Zeile)
 - Nur Lesezugriff. Mails werden nicht gespeichert – nur was du selbst übernimmst. Die Verbindung gilt jeweils ca. 1 Stunde, danach „Neu verbinden“.
 
+**To do's aus Asana**
+- Eigene Rubrik mit allen offenen Aufgaben aus *Meine Aufgaben* in Asana, gruppiert nach deinen Asana-Bereichen (z. B. „today“, „Später“), mit Fälligkeit und Projekt
+- Filter: Alle, Heute (Bereich „today“ oder fällig), Fällig
+- Abhaken hakt die Aufgabe auch in Asana ab (nochmal tippen macht sie wieder offen)
+- „+ Aufgabe“ übernimmt sie in die Aufgaben des Tages, „+ Zeitplan“ in den nächsten freien Zeitblock
+- Lädt beim Öffnen und wenn du nach mehr als 5 Minuten zur App zurückkehrst neu
+
 **Woche**
 - Gewohnheits-Tracker (6 Gewohnheiten × 7 Tage), Namen werden in die nächste Woche übernommen
 - Ziele & Etappen der Woche: Wochenziele zu Monats-/Jahreszielen anlegen, Tagesziele der Woche, übergeordnete Ziele mit Restzeit
@@ -88,6 +95,18 @@ Firebase legt im Hintergrund ein Google-Cloud-Projekt mit demselben Namen an. Do
 
 Solange die App im Status „Test“ ist, können nur die eingetragenen Testnutzer Gmail verbinden – genau richtig für den persönlichen Gebrauch.
 
+## Asana verbinden (einmalig, 1 Minute)
+
+1. <https://app.asana.com/0/my-apps> öffnen → **Neuer Zugriffstoken** (Personal access token) → Name z. B. „Tagesplaner“ → Schlüssel kopieren.
+2. In der App in der Rubrik **To do's** einfügen → **Asana verbinden**.
+
+Wo der Schlüssel liegt:
+- Immer in diesem Browser (localStorage), damit die Liste sofort lädt.
+- Mit Google-Anmeldung und Häkchen „Auf allen meinen Geräten verwenden“ zusätzlich in deinem Konto unter `users/<deine-id>/secrets/asana`. Die Firestore-Regeln erlauben nur dir selbst den Zugriff; der Bereich `secrets` wird beim Daten-Export nicht mitgenommen.
+- Der Schlüssel geht nur direkt an `app.asana.com`, an keinen anderen Server.
+
+„Trennen“ löscht ihn auf dem Gerät und im Konto. Ganz ungültig machst du ihn in Asana unter „Meine Apps“ → Token widerrufen. Ein Asana-Zugriffstoken hat dieselben Rechte wie du in Asana; die App nutzt davon nur Lesen und Abhaken eigener Aufgaben.
+
 ## Lokal ausprobieren
 
 ```bash
@@ -105,6 +124,7 @@ Für die Google-Anmeldung lokal zusätzlich `localhost` als autorisierte Domain 
 - `js/autocomplete.js` – Excel-artige Vorschläge
 - `js/goals.js` – Ziele mit Etappen und Fristen
 - `js/gmail.js` – Gmail lesen (Liste, Betreff, Absender)
+- `js/asana.js` – Asana: eigene Aufgaben lesen und abhaken
 - `js/store.js` – Speicher (Firestore oder localStorage)
 - `js/firebase-config.js` – deine Firebase-Konfiguration
 - `firestore.rules` – Zugriffsregeln für die Datenbank
