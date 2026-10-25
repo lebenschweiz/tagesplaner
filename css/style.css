@@ -157,7 +157,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .selbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--sel);border:1px solid var(--sel-line);border-radius:8px;padding:6px 8px}
 .selbar #selInfo{font-weight:600;font-size:13.5px;margin-right:4px}
 .slots{position:relative;display:grid;border:1px solid var(--line);border-radius:10px}
-.slot,.slot-h{display:grid;grid-template-columns:3.7em minmax(0,1fr) minmax(0,1fr) 2.2em;align-items:stretch}
+.slot,.slot-h{display:grid;grid-template-columns:var(--grid,3.7em minmax(0,1fr) minmax(0,1fr) 2.2em);align-items:stretch}
 .slot-h{background:var(--slot-alt);font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);border-radius:8px 8px 0 0}
 .slot-h>div{padding:8px}
 .slot-h .pl{color:var(--gold)}
@@ -174,6 +174,30 @@ button{font:inherit;color:inherit;cursor:pointer}
 .slot input{position:relative;border:0;background:transparent;padding:6px 10px 6px 12px;font-size:14px;height:100%}
 .slot input:focus{background:color-mix(in srgb,var(--gold-soft) 70%,transparent)}
 .slot .du{position:absolute;right:10px;top:7px;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;pointer-events:none}
+/* Eigene Bereiche: weitere Spalten neben Geplant/Gemacht, über den Namen auf- und zuklappbar */
+.slot-h>div:not(.xh):not(.xadd){align-self:center}
+.slot-h .xadd{padding:0;display:grid;border-left:1px solid var(--line)}
+.slot-h .xadd button{border:0;background:transparent;color:var(--muted);font-size:18px;font-weight:500;padding:0;cursor:pointer}
+.slot-h .xadd button:hover{color:var(--gold)}
+.slot-h .xh{display:flex;align-items:center;gap:2px;min-width:0;border-left:1px solid var(--line);padding:4px 4px 4px 8px}
+.slot-h .xh button{border:0;background:transparent;font:inherit;letter-spacing:inherit;text-transform:inherit;color:var(--day);padding:4px 2px;cursor:pointer;min-width:0}
+.slot-h .xh .xh-t{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot-h .xh .xh-t::before{content:"▾ ";color:var(--muted)}
+.slot-h .xh .xh-e{flex:none;color:var(--muted);letter-spacing:0}
+.slot-h .xh .xh-e:hover,.slot-h .xh .xh-t:hover{color:var(--ink)}
+.slot-h .xh.shut{padding:4px 0;justify-content:center}
+.slot-h .xh.shut .xh-t{flex:none;writing-mode:vertical-rl;max-height:6.5em;padding:2px 0}
+.slot-h .xh.shut .xh-t::before{content:"▸ "}
+.slot .xc{position:relative;min-width:0;border-left:1px solid var(--line)}
+.slot .xc::before{content:"";position:absolute;inset:0 4px;pointer-events:none}
+.slot .xc.on::before{background:var(--day-soft);box-shadow:inset 3px 0 0 var(--day)}
+.slot .xc.on:not(.cont)::before{top:2px;border-top-left-radius:6px;border-top-right-radius:6px}
+.slot .xc.on:not(.more)::before{bottom:2px;border-bottom-left-radius:6px;border-bottom-right-radius:6px}
+.slot .xc.cont{border-top-color:transparent}
+.slot .xc.cont .x:not(:focus){color:transparent}
+.slot .xc.shut .x{display:none}
+.slot .xc.shut::before{inset:0 3px}
+.slot .xc.shut.on::before{box-shadow:none;background:var(--day);opacity:.35}
 .slot .cp{border:0;border-left:1px solid var(--line);background:transparent;color:var(--muted);font-size:14px;padding:0}
 .slot .cp:hover{color:var(--ok)}
 /* Blöcke: Geplant mit goldenem Rand, Gemacht grün (wie geplant) oder orange (anders gemacht) */
@@ -194,7 +218,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .slot.now::after{content:"";position:absolute;left:0;right:0;top:calc(var(--nowp,0) * 100%);border-top:2px solid var(--now-line);z-index:3;pointer-events:none}
 .slot.now .t{color:var(--now-line)}
 .slot.sel{background:var(--sel);box-shadow:inset 3px 0 0 var(--sel-line)}
-.slot.fillpreview .p.fillcol,.slot.fillpreview .d.fillcol{background:var(--sel)}
+.slot.fillpreview .p.fillcol,.slot.fillpreview .d.fillcol,.slot.fillpreview .x.fillcol{background:var(--sel)}
 .fill-handle{position:absolute;width:12px;height:12px;background:var(--sel-line);border:2px solid var(--sheet);border-radius:2px;cursor:ns-resize;touch-action:none;z-index:4}
 @media (pointer:coarse){.fill-handle{width:20px;height:20px}}
 

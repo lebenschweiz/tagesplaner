@@ -158,7 +158,7 @@
                 <button class="help" type="button" id="planHelpBtn" aria-expanded="false" aria-controls="planHelp" aria-label="Bedienung erklären">?</button>
               </div>
             </div>
-            <p class="helpbox" id="planHelp" hidden>Gleiche Einträge hintereinander werden zu einem Block zusammengefasst. Zeiten antippen oder ziehen markiert mehrere Zeilen, dann z. B. „Pause“. Das Quadrat am Feld ziehen füllt nach unten aus, wie in Excel. Der Zeitraum gilt für diesen Tag und als Vorgabe für neue Tage; Einträge außerhalb bleiben erhalten.</p>
+            <p class="helpbox" id="planHelp" hidden>Gleiche Einträge hintereinander werden zu einem Block zusammengefasst. Zeiten antippen oder ziehen markiert mehrere Zeilen, dann z. B. „Pause“. Das Quadrat am Feld ziehen füllt nach unten aus, wie in Excel. Mit „+“ oben rechts legst du eigene Bereiche neben Geplant und Gemacht an (z. B. Energie oder Ort); ein Tipp auf den Namen klappt sie auf und zu, ✎ benennt um oder löscht. Der Zeitraum gilt für diesen Tag und als Vorgabe für neue Tage; Einträge außerhalb bleiben erhalten.</p>
             <button class="btn small range-more" id="rangeEarlier">▲ 1 Stunde früher</button>
             <div class="selbar" id="selbar" hidden>
               <span id="selInfo"></span>
@@ -170,9 +170,11 @@
               <button class="btn small" data-sel="clear">Leeren</button>
               <button class="btn small icon" data-sel="close" aria-label="Auswahl aufheben">×</button>
             </div>
+            <div class="scroll-x">
             <div class="slots" id="slots" role="table" aria-label="Zeitplan">
-              <div class="slot-h" role="row"><div>Zeit</div><div class="pl">Geplant</div><div class="dn">Gemacht</div><div></div></div>
+              <div class="slot-h" role="row"><div>Zeit</div><div class="pl">Geplant</div><div class="dn">Gemacht</div><div class="xadd"><button type="button" id="addCol" title="Eigenen Bereich hinzufügen" aria-label="Eigenen Bereich hinzufügen">+</button></div></div>
               <div class="fill-handle" id="fillHandle" hidden title="Ziehen zum Ausfüllen"></div>
+            </div>
             </div>
             <div class="range-row">
               <button class="btn small range-more" id="rangeLater">▼ 1 Stunde später</button>
