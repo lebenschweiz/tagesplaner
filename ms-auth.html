@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Outlook verbinden</title>
+<style>body{font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:90vh;margin:0;color:#23302f;background:#f6f7f4}</style>
+</head>
+<body>
+<p id="msg">Verbindung wird abgeschlossen …</p>
+<script>
+// Rückkehr von der Microsoft-Anmeldung: Ergebnis an den Tagesplaner weitergeben und Fenster schließen.
+// Über localStorage (funktioniert auch, wenn der Browser die Verbindung zum Hauptfenster trennt) und postMessage.
+(function () {
+  var result = { search: location.search, at: Date.now() };
+  try { localStorage.setItem("tagesplaner:ms-auth", JSON.stringify(result)); } catch (e) {}
+  try { if (window.opener) window.opener.postMessage({ type: "ms-auth", search: location.search }, location.origin); } catch (e) {}
+  setTimeout(function () {
+    window.close();
+    document.getElementById("msg").textContent = "Fertig. Du kannst dieses Fenster schließen und zum Tagesplaner zurückkehren.";
+  }, 300);
+})();
+</script>
+</body>
+</html>

@@ -45,6 +45,10 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - „+ To-do“ übernimmt den Betreff in die To-dos, „+ Zeitplan“ setzt ihn in den nächsten freien Zeitblock (ab jetzt oder ab der markierten Zeile)
 - Nur Lesezugriff. Mails werden nicht gespeichert – nur was du selbst übernimmst. Die Verbindung gilt jeweils ca. 1 Stunde, danach „Neu verbinden“.
 
+**Kalender: Google und Outlook**
+- Google Kalender (nach Google-Anmeldung) und/oder Outlook (Microsoft-Konto, privat oder Firma) verbinden – einzeln oder beide zusammen. Die Termine erscheinen gemeinsam in einer Liste.
+- Outlook bleibt bis zu 24 Stunden verbunden und erneuert sich still; danach einmal „Outlook verbinden“.
+
 **Google Kalender** (nach Google-Anmeldung)
 - „Kalender verbinden“ holt die Termine des Tages aus allen Kalendern, die in Google Kalender sichtbar sind.
 - Termine werden automatisch als Blöcke in „Geplant“ eingetragen (📅 vor dem Titel), auf 15 Minuten gerundet. Ganztägige Termine landen unter „Termine & Notizen“. Abgelehnte Termine werden übersprungen.
@@ -113,6 +117,23 @@ Im selben Google-Cloud-Projekt wie bei Gmail:
 
 Kommt „Google erlaubt den Zugriff noch nicht“, fehlt meist Schritt 1 (die API braucht nach dem Aktivieren ein paar Minuten) oder beim Verbinden wurde das Kalender-Häkchen nicht gesetzt – dann „Erneut verbinden“.
 
+## Outlook-Kalender einrichten (einmalig, ca. 10 Minuten, kostenlos)
+
+Microsoft verlangt, dass jede App, die Kalender lesen will, einmal registriert wird. Das geht mit deinem normalen Microsoft-Konto.
+
+1. <https://entra.microsoft.com> (oder <https://portal.azure.com>) öffnen und mit deinem Microsoft-Konto anmelden.
+2. **Identität → Anwendungen → App-Registrierungen → Neue Registrierung**:
+   - Name: `Tagesplaner`
+   - Unterstützte Kontotypen: **Konten in einem beliebigen Organisationsverzeichnis und persönliche Microsoft-Konten**
+   - Umleitungs-URI: Plattform **Single-Page-Anwendung (SPA)**, Adresse `https://lebenschweiz.github.io/tagesplaner/ms-auth.html`
+   - **Registrieren**.
+3. Auf der Übersichtsseite die **Anwendungs-ID (Client-ID)** kopieren.
+4. In [`js/ms-config.js`](js/ms-config.js) `export const msClientId = null;` ersetzen durch `export const msClientId = "die-kopierte-id";` und committen.
+5. In der App unter „Termine & Notizen“ → **Kalender** → **„Outlook verbinden“** → anmelden → Lesezugriff auf Kalender erlauben.
+
+Optional für lokale Tests: unter **Authentifizierung** zusätzlich `http://localhost:8000/ms-auth.html` als SPA-Umleitungs-URI eintragen.
+Bei einem Firmenkonto kann es sein, dass die IT die Zustimmung erteilen muss („Administratorgenehmigung erforderlich“).
+
 ## Lokal ausprobieren
 
 ```bash
@@ -131,6 +152,9 @@ Für die Google-Anmeldung lokal zusätzlich `localhost` als autorisierte Domain 
 - `js/goals.js` – Ziele mit Etappen und Fristen
 - `js/gmail.js` – Gmail lesen (Liste, Betreff, Absender)
 - `js/gcal.js` – Google Kalender lesen (Termine eines Tages)
+- `js/outlook.js` – Outlook-Kalender lesen (Microsoft Graph, Anmeldung per Popup)
+- `js/ms-config.js` – Client-ID der Microsoft-App-Registrierung
+- `ms-auth.html` – Rückkehrseite nach der Microsoft-Anmeldung
 - `js/store.js` – Speicher (Firestore oder localStorage)
 - `js/firebase-config.js` – deine Firebase-Konfiguration
 - `firestore.rules` – Zugriffsregeln für die Datenbank
