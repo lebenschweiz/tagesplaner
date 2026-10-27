@@ -249,6 +249,19 @@
             <div class="fold-body"><div id="habitsToday" class="habits-today"></div></div>
           </details>
 
+          <details class="fold card" data-fold="areas" open id="areasBox">
+            <summary><span class="label">Lebensbereiche</span><span class="sub" id="areasSum"></span></summary>
+            <div class="fold-body areas">
+              <ul class="area-bars" id="areaBars" aria-label="Zeit pro Lebensbereich heute"></ul>
+              <p class="sub area-tip" id="areaTip"></p>
+              <div class="area-assign">
+                <div class="label small-label">Einträge zuordnen</div>
+                <p class="sub">Tippe auf den Bereich, um ihn zu ändern. Gilt für alle Tage. <span class="guess-key">gestrichelt</span> = automatisch erkannt.</p>
+                <ul id="areaEntries" class="area-entries"></ul>
+              </div>
+            </div>
+          </details>
+
           <details class="fold card" data-fold="load">
             <summary><span class="label">Auslastung</span><span class="sub">Zeit pro Eintrag</span></summary>
             <div class="fold-body load" id="load" aria-label="Auslastung des Tages">
@@ -388,6 +401,23 @@
     </section>
 
     <section class="sheet">
+      <details class="fold" data-fold="weekAreas" open>
+      <summary><span class="label">Lebensbereiche der Woche</span><span class="sub" id="weekAreasSum"></span></summary>
+      <div class="fold-body">
+        <div class="scroll-x"><table class="overview area-week" id="areaWeek"></table></div>
+        <div class="wheel-wrap">
+          <div class="wheel" id="wheel" aria-hidden="true"></div>
+          <div class="notes">
+            <div class="label small-label">Lebensrad – wie zufrieden bin ich diese Woche?</div>
+            <p class="sub">1 = gar nicht, 10 = rundum. Die farbige Fläche zeigt deine Bewertung, die gestrichelte Linie den Anteil deiner Zeit.</p>
+            <div id="areaRatings" class="area-ratings"></div>
+          </div>
+        </div>
+      </div>
+      </details>
+    </section>
+
+    <section class="sheet">
       <details class="fold" data-fold="weekReflection" open>
       <summary><span class="label spaced">Selbst-Reflexion</span></summary>
       <div class="fold-body">
@@ -458,6 +488,7 @@
 <datalist id="ac-slot"></datalist>
 <datalist id="ac-todo"></datalist>
 <datalist id="ac-text"></datalist>
+<div class="area-pick" id="areaPick" role="menu" hidden></div>
 <datalist id="ac-habit"></datalist>
 <datalist id="ac-meal"></datalist>
 <datalist id="ac-fit"></datalist>

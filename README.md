@@ -53,6 +53,13 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - Automatisch nur für heute und kommende Tage (abschaltbar); für vergangene Tage „Alle eintragen“ oder „+ Zeitplan“ pro Termin.
 - Nur Lesezugriff, im Kalender wird nichts geändert. Eine Verbindung gilt für Gmail und Kalender zusammen, jeweils ca. 1 Stunde; danach „Neu verbinden“.
 
+**Lebensbereiche**
+- Jeder Zeitblock und jedes To-do gehört zu einem von fünf Bereichen: Körper & Gesundheit, Arbeit & Leistung, Soziales Netzwerk, Materielle Sicherheit, Werte & Sinn.
+- Die App erkennt den Bereich anhand von Stichwörtern („Sport“ → Körper, „Rechnungen“ → Materielles, „Mama anrufen“ → Soziales). Gestrichelt = automatisch erkannt.
+- Ein Tipp auf den Bereich ändert die Zuordnung; sie gilt für diesen Eintrag an allen Tagen („Cocktail: Video“ zählt wie „Cocktail“).
+- Tag: Zeit (gemacht/geplant) und To-dos pro Bereich, farbiger Streifen im Zeitplan, Hinweis auf Bereiche ohne Zeit.
+- Woche: Stunden pro Bereich und Tag mit Anteil, dazu das Lebensrad: Zufriedenheit 1–10 pro Bereich im Vergleich zum Anteil der Zeit.
+
 **Woche**
 - Gewohnheits-Tracker (6 Gewohnheiten × 7 Tage), Namen werden in die nächste Woche übernommen
 - Ziele & Etappen der Woche: Wochenziele zu Monats-/Jahreszielen anlegen, Tagesziele der Woche, übergeordnete Ziele mit Restzeit
