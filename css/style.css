@@ -501,3 +501,5 @@ select,input[type=date]{font:inherit;color:var(--ink);background:var(--sheet);bo
 .area-ratings .scale button{width:28px;height:28px;font-size:12px}
 .area-ratings .scale button[aria-checked=true]{background:var(--ac);border-color:var(--ac);color:var(--sheet)}
 @media (max-width:480px){.area-ratings .ar{grid-template-columns:minmax(0,1fr)}}
+.cal-sources{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center}
+.cal-sources .sub{font-size:12.5px}

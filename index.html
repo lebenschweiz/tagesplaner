@@ -213,7 +213,7 @@
             <div class="fold-body notes">
               <textarea id="appts" data-k="appts" rows="3" aria-label="Termine und Notizen" placeholder="z. B. 10:00 Zahnarzt · Paket abholen"></textarea>
               <details class="gmail gcal" id="calBox">
-                <summary><span class="label">Google Kalender</span><span class="sub" id="calCount"></span></summary>
+                <summary><span class="label">Kalender</span><span class="sub" id="calCount"></span></summary>
                 <div class="gmail-body">
                   <div class="gmail-bar">
                     <label class="habit"><input type="checkbox" class="check" id="calAuto"> Termine automatisch in „Geplant“ eintragen</label>
@@ -223,8 +223,13 @@
                     </div>
                   </div>
                   <div id="calState" class="gmail-state">
-                    <p class="sub" id="calMsg">Verbinde deinen Google Kalender: Die Termine des Tages erscheinen hier und werden als Blöcke in „Geplant“ eingetragen. Nur Lesen – in deinem Kalender wird nichts geändert.</p>
-                    <button class="btn primary" id="calConnect">Kalender verbinden</button>
+                    <p class="sub" id="calMsg">Verbinde Google Kalender und/oder Outlook: Die Termine des Tages erscheinen hier und werden als Blöcke in „Geplant“ eingetragen. Nur Lesen – in deinen Kalendern wird nichts geändert.</p>
+                  </div>
+                  <div class="cal-sources">
+                    <button class="btn" id="calConnect">Google Kalender verbinden</button>
+                    <button class="btn" id="msConnect" hidden>Outlook verbinden</button>
+                    <span class="sub" id="calSources"></span>
+                    <button class="btn small" id="msDisconnect" hidden>Outlook trennen</button>
                   </div>
                   <ul class="mails events" id="events"></ul>
                 </div>
