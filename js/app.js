@@ -1,4 +1,5 @@
 import { watchAuth, signInWithGoogle, useLocal, cloudAvailable, connectGoogle, cachedGoogleToken, forgetGoogleToken, GMAIL_SCOPE, CALENDAR_SCOPE } from "./store.js";
+import { AREAS, AREA_BY_ID, areaOf, summarizeDay, entriesOfDay } from "./areas.js";
 import { listMessages, FILTERS } from "./gmail.js";
 import { listEvents } from "./gcal.js";
 import { createAutocomplete } from "./autocomplete.js";
@@ -68,7 +69,7 @@ function blankWeek(monday) {
   return { monday,
     habits: Array.from({ length: HABIT_ROWS }, () => ({ name: "", days: [false, false, false, false, false, false, false] })),
     goals: [0, 1].map(() => ({ text: "", steps: list(3) })),
-    meaning: null, meaningNotes: "", wins: "" };
+    meaning: null, meaningNotes: "", wins: "", areaRatings: {} };
 }
 function normWeek(x, monday) {
   const b = blankWeek(monday);
@@ -92,7 +93,7 @@ let view = "day";
 let current = todayIso();
 let day = blankDay(current);
 let week = blankWeek(mondayOf(current));
-let meta = { vocab: null, templates: {}, habitNames: [], range: null, columns: [], calAuto: true };
+let meta = { vocab: null, templates: {}, habitNames: [], range: null, columns: [], calAuto: true, areaMap: {} };
 let rendering = false;
 const timers = {};
 const dirty = new Set();
@@ -116,7 +117,7 @@ async function flush(what) {
     if (what === "week") { const w = clone(week); w.updatedAt = new Date().toISOString(); await store.set("weeks", w.monday, w); }
     if (what === "meta") {
       await store.set("meta", "vocab", meta.vocab || {});
-      await store.set("meta", "settings", { templates: meta.templates, habitNames: meta.habitNames, range: meta.range, columns: meta.columns, calAuto: meta.calAuto });
+      await store.set("meta", "settings", { templates: meta.templates, habitNames: meta.habitNames, range: meta.range, columns: meta.columns, calAuto: meta.calAuto, areaMap: meta.areaMap });
     }
     if (what === "goals") await store.set("meta", "goals", { ...goals.data(), updatedAt: new Date().toISOString() });
     if (!dirty.size) setStatus("Gespeichert " + new Date().toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" }));
@@ -377,6 +378,10 @@ function decorateDay() {
     r.classList.toggle("met", !!d && !pause);
     r.classList.toggle("diff", !!d && !!p && !pause && !same(p, d));
     r.classList.toggle("missed", !pause && !!p && !d && (past || (isToday && sm + 15 <= nm)));
+    const pA = !pause && p ? areaOf(p, meta.areaMap) : null, dA = !pause && d ? areaOf(d, meta.areaMap) : null;
+    const showA = dA || pA;
+    if (showA) r.dataset.acArea = showA.id; else delete r.dataset.acArea;
+    r.toggleAttribute("data-area", !!dA); r.toggleAttribute("data-parea", !!pA);
     const isNow = isToday && nm >= sm && nm < sm + 15;
     r.classList.toggle("now", isNow);
     if (isNow) { r.style.setProperty("--nowp", ((nm - sm) / 15).toFixed(3)); r.dataset.now = hm(nm); }
@@ -425,6 +430,7 @@ function decorateDay() {
   const journal = [...day.grateful, ...day.forward, ...day.affirm];
   $("journalCount").textContent = `${journal.filter(x => x.trim()).length} von ${journal.length} ausgefüllt`;
   renderLoad();
+  renderAreas();
   positionHandle();
 }
 
@@ -452,6 +458,110 @@ function renderLoad() {
   $("loadDone").innerHTML = loadList(".d");
 }
 setInterval(() => { if (view === "day") decorateDay(); }, 60000);
+
+/* ================= Lebensbereiche ================= */
+const areaColor = id => `data-ac-area="${id}"`;
+function renderAreas() {
+  const sum = summarizeDay(day, meta.areaMap);
+  const maxMin = Math.max(60, ...Object.values(sum).map(o => Math.max(o.plan, o.done)));
+  const totalDone = AREAS.reduce((a, x) => a + sum[x.id].done, 0);
+  const line = (id, name, o) => {
+    const parts = [];
+    if (o.done || o.plan) parts.push(o.done ? `${fmtDur(o.done)}${o.plan && o.plan !== o.done ? ` <small>/ ${fmtDur(o.plan)} geplant</small>` : ""}` : `<small>${fmtDur(o.plan)} geplant</small>`);
+    if (o.todo) parts.push(`${o.todoDone}/${o.todo} To-do${o.todo > 1 ? "s" : ""}`);
+    return `<li ${areaColor(id)} class="${id === "none" ? "none" : ""}"><span class="n"><i class="adot"></i><span>${esc(name)}</span></span>` +
+      `<span class="v">${parts.join(" · ") || "–"}</span>` +
+      `<span class="track"><i class="pl" style="width:${o.plan / maxMin * 100}%"></i><i class="dn" style="width:${o.done / maxMin * 100}%"></i></span></li>`;
+  };
+  const n = sum.none;
+  $("areaBars").innerHTML = AREAS.map(a => line(a.id, a.name, sum[a.id])).join("") + (n.done || n.plan || n.todo ? line("none", "Ohne Bereich", n) : "");
+  $("areasSum").textContent = totalDone ? `${fmtDur(totalDone)} gemacht · ${AREAS.filter(a => sum[a.id].done || sum[a.id].todoDone).length} von 5 Bereichen` : "";
+  // Hinweis: Bereich ohne Zeit, obwohl der Tag schon gefüllt ist
+  const empty = AREAS.filter(a => !sum[a.id].done && !sum[a.id].plan && !sum[a.id].todo);
+  $("areaTip").textContent = totalDone >= 120 && empty.length && empty.length < 5
+    ? `Heute noch ohne Zeit: ${empty.map(a => a.short).join(", ")}. Schon 15 Minuten zählen – z. B. ${tipFor(empty[0].id)}.` : "";
+  const entries = entriesOfDay(day);
+  $("areaEntries").innerHTML = entries.length ? entries.map(e => {
+    const a = areaOf(e.name, meta.areaMap);
+    const chip = a ? `<button type="button" class="achip${a.sure ? "" : " guess"}" ${areaColor(a.id)} data-akey="${esc(e.key)}" data-aname="${esc(e.name)}"><i class="adot"></i>${esc(AREA_BY_ID[a.id].short)}</button>`
+      : `<button type="button" class="achip empty" data-ac-area="none" data-akey="${esc(e.key)}" data-aname="${esc(e.name)}">+ Bereich</button>`;
+    const amount = [e.min ? fmtDur(e.min) : "", e.todos ? `${e.todos} To-do${e.todos > 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ");
+    return `<li><span class="en" title="${esc(e.name)}">${esc(e.name)}</span><span class="em">${amount}</span>${chip}</li>`;
+  }).join("") : `<li class="sub">Sobald du im Zeitplan oder bei den To-dos etwas einträgst, erscheint es hier.</li>`;
+}
+function tipFor(id) {
+  return { body: "ein Spaziergang oder Dehnen", work: "an einem Hobby oder Kurs weitermachen", social: "jemanden anrufen",
+    material: "Rechnungen oder Budget anschauen", meaning: "fünf Minuten Tagebuch oder Stille" }[id];
+}
+let pickKey = null;
+function openAreaPick(btn) {
+  pickKey = btn.dataset.akey;
+  const cur = Object.prototype.hasOwnProperty.call(meta.areaMap, pickKey) ? meta.areaMap[pickKey] : null;
+  const box = $("areaPick");
+  box.innerHTML = `<div class="sub" style="padding:4px 10px">„${esc(btn.dataset.aname)}“ gehört zu …</div>` +
+    AREAS.map(a => `<button type="button" role="menuitemradio" aria-checked="${cur === a.id}" data-pick="${a.id}" ${areaColor(a.id)}><i class="adot"></i><span>${esc(a.name)}<small>${esc(a.hint)}</small></span></button>`).join("") +
+    `<button type="button" role="menuitemradio" aria-checked="${cur === ""}" data-pick="" ${areaColor("none")}><i class="adot"></i><span>Keinem Bereich</span></button>` +
+    (cur !== null ? `<button type="button" data-pick="auto"><span class="sub">Automatisch erkennen</span></button>` : "");
+  box.hidden = false;
+  const r = btn.getBoundingClientRect(), w = box.offsetWidth, h = box.offsetHeight;
+  box.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.right - w)) + "px";
+  box.style.top = (r.bottom + h + 8 < innerHeight ? r.bottom + 6 : Math.max(8, r.top - h - 6)) + "px";
+  box.querySelector('[aria-checked="true"]')?.focus() || box.querySelector("button").focus();
+}
+function closeAreaPick() { $("areaPick").hidden = true; pickKey = null; }
+document.addEventListener("click", e => {
+  const chip = e.target.closest("[data-akey]");
+  if (chip) { e.stopPropagation(); return openAreaPick(chip); }
+  const pick = e.target.closest("[data-pick]");
+  if (pick && pickKey != null) {
+    if (pick.dataset.pick === "auto") delete meta.areaMap[pickKey]; else meta.areaMap[pickKey] = pick.dataset.pick;
+    closeAreaPick(); queueSave("meta"); decorateDay();
+    if (view === "week" && weekDays.length) renderOverview();
+    return;
+  }
+  if (!e.target.closest("#areaPick")) closeAreaPick();
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("areaPick").hidden) closeAreaPick(); });
+window.addEventListener("scroll", () => { if (!$("areaPick").hidden) closeAreaPick(); }, { passive: true });
+
+function renderAreaWeek() {
+  const sums = weekDays.map(d => summarizeDay(d, meta.areaMap));
+  const ti = todayIso();
+  const tot = Object.fromEntries([...AREAS.map(a => a.id), "none"].map(id => [id, sums.reduce((a, x) => a + x[id].done, 0)]));
+  const all = AREAS.reduce((a, x) => a + tot[x.id], 0);
+  const maxDay = Math.max(60, ...sums.flatMap(x => AREAS.map(a => x[a.id].done)));
+  const head = `<thead><tr><th></th>${weekDays.map((d, i) => `<th data-open="${d.date}" class="${d.date === ti ? "today" : ""}">${DAY_SHORT[i]} ${parse(d.date).getDate()}.</th>`).join("")}<th>Woche</th></tr></thead>`;
+  const body = AREAS.map(a => `<tr ${areaColor(a.id)}><th><i class="adot"></i>${esc(a.short)}</th>` +
+    sums.map(x => { const m = x[a.id].done, t = x[a.id].todoDone; return m || t ? `<td>${m ? fmtDur(m) : ""}${t ? `${m ? " · " : ""}${t} ✓` : ""}<span class="mini" style="width:${m / maxDay * 100}%"></span></td>` : `<td class="sub">–</td>`; }).join("") +
+    `<td class="sum">${tot[a.id] ? `${fmtDur(tot[a.id])} · ${Math.round(tot[a.id] / (all || 1) * 100)} %` : "–"}</td></tr>`).join("");
+  $("areaWeek").innerHTML = head + "<tbody>" + body + "</tbody>";
+  $("weekAreasSum").textContent = all ? `${fmtDur(all)} zugeordnet${tot.none ? ` · ${fmtDur(tot.none)} ohne Bereich` : ""}` : "";
+  // Lebensrad
+  const ratings = week.areaRatings || {};
+  $("areaRatings").innerHTML = AREAS.map(a => `<div class="ar" ${areaColor(a.id)}><span class="n"><i class="adot"></i>${esc(a.short)}</span>` +
+    `<div class="scale" role="radiogroup" aria-label="${esc(a.name)} 1 bis 10">${Array.from({ length: 10 }, (_, i) => `<button type="button" role="radio" data-rate-area="${a.id}" data-v="${i + 1}" aria-checked="${ratings[a.id] === i + 1}">${i + 1}</button>`).join("")}</div></div>`).join("");
+  $("wheel").innerHTML = wheelSvg(ratings, AREAS.map(a => all ? tot[a.id] / all : 0));
+}
+function wheelSvg(ratings, shares) {
+  const cx = 150, cy = 140, R = 100, n = AREAS.length;
+  const pt = (i, r) => { const ang = -Math.PI / 2 + i * 2 * Math.PI / n; return [cx + r * Math.cos(ang), cy + r * Math.sin(ang)]; };
+  const poly = vals => vals.map((v, i) => pt(i, v * R).map(x => x.toFixed(1)).join(",")).join(" ");
+  let g = "";
+  [0.2, 0.4, 0.6, 0.8, 1].forEach(f => { g += `<polygon points="${poly(AREAS.map(() => f))}" fill="none" stroke="var(--line)" stroke-width="1"/>`; });
+  AREAS.forEach((a, i) => {
+    const [x, y] = pt(i, R), [lx, ly] = pt(i, R + 20);
+    g += `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)"/>`;
+    g += `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="${Math.abs(lx - cx) < 5 ? "middle" : lx > cx ? "start" : "end"}">${esc(a.short)}</text>`;
+  });
+  const maxShare = Math.max(...shares);
+  if (maxShare > 0) g += `<polygon points="${poly(shares.map(s => s / maxShare))}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  const rated = AREAS.some(a => ratings[a.id]);
+  if (rated) {
+    g += `<polygon points="${poly(AREAS.map(a => (ratings[a.id] || 0) / 10))}" fill="var(--gold)" fill-opacity=".18" stroke="var(--gold)" stroke-width="2"/>`;
+    AREAS.forEach((a, i) => { if (!ratings[a.id]) return; const [x, y] = pt(i, ratings[a.id] / 10 * R); g += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="var(--a-${a.id})" stroke="var(--sheet)" stroke-width="1.5"/>`; });
+  }
+  return `<svg viewBox="0 0 300 280" role="img" aria-label="Lebensrad">${g}</svg>`;
+}
 
 /* ================= Eingaben Tag ================= */
 function slotFromRow(r) {
@@ -815,10 +925,19 @@ function renderOverview() {
     `<span class="chip">Getrackt <b>${(tracked / 4).toLocaleString("de-CH")} h</b></span>` +
     `<span class="chip">Gewohnheiten <b>${habitDone} / ${habitTotal}</b></span>` +
     (() => { const r = weekDays.map(d => d.selfRating).filter(Boolean); return r.length ? `<span class="chip">Ø Tag <b>${(r.reduce((a, b) => a + b, 0) / r.length).toLocaleString("de-CH", { maximumFractionDigits: 1 })} / 10</b></span>` : ""; })();
+  renderAreaWeek();
 }
 $("weekView").addEventListener("click", e => {
   const o = e.target.closest("[data-open]");
   if (o) { setView("day"); loadDate(o.dataset.open); return; }
+  const ra = e.target.closest("[data-rate-area]");
+  if (ra) {
+    snapshotForUndo();
+    week.areaRatings = Object.assign({}, week.areaRatings);
+    const id = ra.dataset.rateArea, v = +ra.dataset.v;
+    if (week.areaRatings[id] === v) delete week.areaRatings[id]; else week.areaRatings[id] = v;
+    renderAreaWeek(); queueSave("week"); return;
+  }
   const s = e.target.closest("#scale button");
   if (s) { snapshotForUndo(); week.meaning = week.meaning === +s.dataset.v ? null : +s.dataset.v; renderWeek(); queueSave("week"); }
 });
@@ -1187,6 +1306,7 @@ async function loadMeta() {
   meta.vocab = v || {}; meta.templates = (s && s.templates) || {}; meta.habitNames = (s && s.habitNames) || [];
   meta.range = s && s.range && s.range.end > s.range.start ? s.range : null;
   meta.calAuto = !(s && s.calAuto === false);
+  meta.areaMap = s && s.areaMap && typeof s.areaMap === "object" ? s.areaMap : {};
   meta.columns = (s && Array.isArray(s.columns) ? s.columns : []).filter(c => c && c.id && c.name).map(c => ({ id: String(c.id), name: String(c.name), open: c.open !== false }));
   buildColumns();
   goals.load(g);
