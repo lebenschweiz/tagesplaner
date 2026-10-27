@@ -449,8 +449,9 @@ select,input[type=date]{font:inherit;color:var(--ink);background:var(--sheet);bo
 .z-eve .scale button[aria-checked=true]{background:var(--eve);border-color:var(--eve);color:var(--sheet)}
 .z-eve .moods button[aria-pressed=true]{background:var(--eve-soft);border-color:var(--eve)}
 #dayView .small-label{font-size:12.5px;color:var(--muted)}
-.z-eve .quote{background:transparent;color:var(--ink);border-left:3px solid var(--gold);border-radius:0;padding:4px 0 4px 14px;text-align:left}
-.z-eve .quote small{color:var(--muted)}
+#dayView>.quote{margin:0;background:var(--gold-soft);color:var(--ink);border-left:3px solid var(--gold);border-radius:0 8px 8px 0;padding:10px 16px;text-align:left}
+#dayView>.quote q{font-size:17px}
+#dayView>.quote small{color:var(--muted);opacity:1}
 #dayView .inline.meal{grid-template-columns:6.5em minmax(0,1fr)}
 
 /* Lebensbereiche */
