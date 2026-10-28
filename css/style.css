@@ -313,6 +313,24 @@ dialog::backdrop{background:rgb(0 0 0 / .35)}
 .mail .acts{grid-row:1/3;grid-column:2;display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .mail .acts .btn{padding:3px 8px;font-size:12.5px}
 .mail .acts .btn.done{border-color:var(--ok);color:var(--ok)}
+.fold-body.asana{display:grid;gap:10px}
+.asana-setup{display:grid;gap:8px;width:100%}
+.asana-setup ol{margin:0;padding-left:20px;display:grid;gap:2px}
+.asana-key{display:flex;gap:6px;flex-wrap:wrap}
+.asana-key input{flex:1;min-width:180px;font:inherit;color:var(--ink);background:transparent;border:0;border-bottom:1px solid var(--line);padding:6px 2px;border-radius:0}
+.asana-key input:focus{outline:none;border-bottom-color:var(--gold)}
+.asana-sync{display:flex;align-items:center;gap:8px}
+.asana-sync .check{width:18px;height:18px}
+.asana-list{max-height:520px}
+.asana-list:empty{display:none}
+.asana-sec{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:10px 2px 4px;border-bottom:1px solid var(--line)}
+.asana-name{display:flex;align-items:center;gap:8px;min-width:0;font-size:14px}
+.asana-name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.asana-task .snip{padding-left:28px}
+.asana-task .snip:empty{display:none}
+.asana-task .snip.late{color:var(--warn)}
+.asana-task.done .asana-name span{text-decoration:line-through;color:var(--muted)}
+.asana-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 @media (max-width:480px){.mail{grid-template-columns:minmax(0,1fr)}.mail .acts{grid-row:auto;grid-column:1;justify-content:flex-start}}
 
 /* Auf-/zuklappbare Bereiche */
