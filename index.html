@@ -38,6 +38,7 @@
           <button role="tab" id="tabDay" aria-selected="true">Tag</button>
           <button role="tab" id="tabWeek" aria-selected="false">Woche</button>
           <button role="tab" id="tabGoals" aria-selected="false">Ziele</button>
+          <button role="tab" id="tabTodos" aria-selected="false">To do's</button>
         </nav>
       </div>
       <div class="datenav">
@@ -91,7 +92,6 @@
       <span class="sep"></span>
       <a href="#planBox" class="z-day"><i></i>Zeitplan</a>
       <a href="#todoBox" class="z-day"><i></i>Aufgaben</a>
-      <a href="#asanaBox" class="z-day"><i></i>To do's</a>
       <a href="#apptBox" class="z-day"><i></i>Termine</a>
       <span class="sep"></span>
       <a href="#zoneEve" class="z-eve"><i></i>Festhalten</a>
@@ -206,35 +206,6 @@
               <div id="more"></div>
               <button class="btn small addrow" id="addMore">+ Aufgabe</button>
               <label class="habit"><input type="checkbox" class="check" id="habit" data-k="habit"> Gewohnheits-Tracker genutzt?</label>
-            </div>
-          </details>
-
-          <details class="fold card" data-fold="asana" open id="asanaBox">
-            <summary><span class="label">To do's</span><span class="sub" id="asanaCount">aus Asana</span></summary>
-            <div class="fold-body asana">
-              <div class="gmail-bar" id="asanaBar" hidden>
-                <div class="moods" id="asanaFilters" role="group" aria-label="To do's filtern"></div>
-                <button class="btn small" id="asanaRefresh">Aktualisieren</button>
-              </div>
-              <div id="asanaState" class="gmail-state">
-                <p class="sub" id="asanaMsg">Verknüpfe dein Asana-Konto, dann erscheinen hier alle deine offenen Aufgaben aus „Meine Aufgaben“. Abhaken hier hakt sie auch in Asana ab.</p>
-                <div class="asana-setup" id="asanaSetup">
-                  <ol class="sub">
-                    <li>In der <a href="https://app.asana.com/0/my-apps" target="_blank" rel="noopener">Asana-Entwicklerkonsole</a> auf „Neuer Zugriffstoken“ tippen, Name z. B. „Tagesplaner“.</li>
-                    <li>Den Schlüssel kopieren und hier einfügen.</li>
-                  </ol>
-                  <div class="asana-key">
-                    <input type="password" id="asanaToken" placeholder="Zugangsschlüssel einfügen" autocomplete="off" spellcheck="false" aria-label="Asana-Zugangsschlüssel">
-                    <button class="btn primary" id="asanaConnect">Asana verbinden</button>
-                  </div>
-                  <label class="sub asana-sync" id="asanaSyncLabel"><input type="checkbox" class="check" id="asanaSync" checked> Auf allen meinen Geräten verwenden (geschützt in meinem Konto gespeichert)</label>
-                </div>
-              </div>
-              <ul class="mails asana-list" id="asanaList"></ul>
-              <div class="asana-foot" id="asanaFoot" hidden>
-                <span class="sub" id="asanaInfo"></span>
-                <button class="btn small" id="asanaDisconnect">Trennen</button>
-              </div>
             </div>
           </details>
 
@@ -498,6 +469,41 @@
       </div>
       <div class="gl-tree" data-gl="tree"></div>
     </section>
+  </main>
+
+  <!-- TO DO'S: „Meine Aufgaben“ aus Asana, wie in Asana -->
+  <main id="todosView" class="view as-view" hidden>
+    <div class="as-head">
+      <div class="as-title">
+        <h1>Meine Aufgaben</h1>
+        <span class="sub" id="asanaInfo"></span>
+      </div>
+      <nav class="as-modes" id="asanaModes" aria-label="Darstellung">
+        <button type="button" data-am="list" aria-pressed="false">Liste</button>
+        <button type="button" data-am="board" aria-pressed="true">Board</button>
+      </nav>
+      <div class="as-tools" id="asanaTools" hidden>
+        <a class="btn small" id="asanaOpen" href="https://app.asana.com/0/my-tasks" target="_blank" rel="noopener">In Asana öffnen</a>
+        <button class="btn small" id="asanaRefresh">Aktualisieren</button>
+        <button class="btn small" id="asanaDisconnect">Trennen</button>
+      </div>
+    </div>
+    <div id="asanaState" class="as-state">
+      <p class="sub" id="asanaMsg"></p>
+      <div class="asana-setup" id="asanaSetup">
+        <ol class="sub">
+          <li>In der <a href="https://app.asana.com/0/my-apps" target="_blank" rel="noopener">Asana-Entwicklerkonsole</a> auf „Neuer Zugriffstoken“ tippen, Name z. B. „Tagesplaner“.</li>
+          <li>Den Schlüssel kopieren und hier einfügen.</li>
+        </ol>
+        <div class="asana-key">
+          <input type="password" id="asanaToken" placeholder="Zugangsschlüssel einfügen" autocomplete="off" spellcheck="false" aria-label="Asana-Zugangsschlüssel">
+          <button class="btn primary" id="asanaConnect">Asana verbinden</button>
+        </div>
+        <label class="sub asana-sync" id="asanaSyncLabel"><input type="checkbox" class="check" id="asanaSync" checked> Auf allen meinen Geräten verwenden (geschützt in meinem Konto gespeichert)</label>
+      </div>
+    </div>
+    <div class="as-board" id="asanaBoard" aria-label="Board"></div>
+    <div class="as-list" id="asanaListView" aria-label="Liste" hidden></div>
   </main>
 
   <footer class="wrap foot" id="foot"></footer>

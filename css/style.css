@@ -313,24 +313,72 @@ dialog::backdrop{background:rgb(0 0 0 / .35)}
 .mail .acts{grid-row:1/3;grid-column:2;display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .mail .acts .btn{padding:3px 8px;font-size:12.5px}
 .mail .acts .btn.done{border-color:var(--ok);color:var(--ok)}
-.fold-body.asana{display:grid;gap:10px}
+/* To do's: „Meine Aufgaben“ aus Asana, Board und Liste wie in Asana */
+body.wide .top .wrap{max-width:none}
+.as-view{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));gap:14px}
+.as-head{display:flex;align-items:flex-end;gap:10px 22px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:0}
+.as-title{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding-bottom:8px}
+.as-title h1{font-size:20px}
+.as-modes{display:flex;gap:16px}
+.as-modes button{border:0;background:none;padding:6px 0 9px;font:inherit;font-size:14px;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer}
+.as-modes button[aria-pressed=true]{color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
+.as-tools{display:flex;gap:6px;margin-left:auto;padding-bottom:8px;flex-wrap:wrap}
+.as-state{display:grid;gap:10px;justify-items:start;max-width:640px}
 .asana-setup{display:grid;gap:8px;width:100%}
 .asana-setup ol{margin:0;padding-left:20px;display:grid;gap:2px}
-.asana-key{display:flex;gap:6px;flex-wrap:wrap}
+.asana-key{display:flex;gap:6px;flex-wrap:wrap;width:100%}
 .asana-key input{flex:1;min-width:180px;font:inherit;color:var(--ink);background:transparent;border:0;border-bottom:1px solid var(--line);padding:6px 2px;border-radius:0}
 .asana-key input:focus{outline:none;border-bottom-color:var(--gold)}
 .asana-sync{display:flex;align-items:center;gap:8px}
 .asana-sync .check{width:18px;height:18px}
-.asana-list{max-height:520px}
-.asana-list:empty{display:none}
-.asana-sec{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:10px 2px 4px;border-bottom:1px solid var(--line)}
-.asana-name{display:flex;align-items:center;gap:8px;min-width:0;font-size:14px}
-.asana-name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.asana-task .snip{padding-left:28px}
-.asana-task .snip:empty{display:none}
-.asana-task .snip.late{color:var(--warn)}
-.asana-task.done .asana-name span{text-decoration:line-through;color:var(--muted)}
-.asana-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+/* Board */
+.as-board{display:flex;gap:12px;align-items:flex-start;overflow-x:auto;padding-bottom:12px;scroll-snap-type:x proximity}
+.as-col{flex:0 0 272px;background:color-mix(in srgb,var(--ink) 4%,var(--paper));border-radius:10px;padding:8px;display:grid;gap:8px;scroll-snap-align:start;max-height:calc(100vh - 190px);grid-template-rows:auto minmax(0,1fr) auto}
+.as-col-h{display:flex;align-items:baseline;gap:8px;padding:4px 6px 2px;font-weight:600;font-size:14px}
+.as-col-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.as-col-n{color:var(--muted);font-weight:400;font-size:13px}
+.as-cards{display:grid;gap:8px;overflow-y:auto;align-content:start;min-height:0}
+.as-card{background:var(--sheet);border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:7px;min-height:58px;align-content:start;transition:box-shadow .15s,border-color .15s}
+.as-card:hover{border-color:color-mix(in srgb,var(--ink) 25%,var(--line));box-shadow:0 1px 4px rgb(0 0 0 / .08)}
+.as-card-top{display:flex;gap:8px;align-items:flex-start}
+.as-name{font-size:14px;line-height:1.35;overflow-wrap:anywhere;min-width:0}
+.as-card.done .as-name,.as-row.done .as-name{color:var(--muted)}
+.as-check{flex:none;width:18px;height:18px;margin-top:1px;border-radius:50%;border:1.5px solid color-mix(in srgb,var(--ink) 45%,transparent);background:transparent;padding:0;display:grid;place-items:center;cursor:pointer;color:color-mix(in srgb,var(--ink) 45%,transparent)}
+.as-check svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.as-check:hover{border-color:var(--ok);color:var(--ok);background:var(--ok-soft)}
+.as-check[aria-checked=true]{background:var(--ok);border-color:var(--ok);color:var(--sheet)}
+.as-tags{display:flex;flex-wrap:wrap;gap:4px}
+.as-tag{font-size:11.5px;font-weight:500;line-height:1;padding:4px 7px;border-radius:5px;background:color-mix(in srgb,var(--c) 30%,var(--sheet));color:var(--ink);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.as-tag.plain{background:color-mix(in srgb,var(--ink) 9%,var(--sheet))}
+.as-due{font-size:12.5px;color:var(--muted)}
+.as-due.late{color:#d1395a}
+.as-due.today,.as-due.soon{color:var(--ok)}
+.as-acts{display:flex;gap:4px;flex-wrap:wrap;opacity:0;transition:opacity .15s}
+.as-card:hover .as-acts,.as-card:focus-within .as-acts,.as-row:hover .as-acts,.as-row:focus-within .as-acts{opacity:1}
+@media (hover:none){.as-acts{opacity:1}}
+.as-act{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--sheet);color:var(--muted);border-radius:6px;padding:2px 7px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.as-act:hover{color:var(--ink);border-color:color-mix(in srgb,var(--ink) 30%,var(--line))}
+.as-act.done{color:var(--ok);border-color:var(--ok);cursor:default}
+.as-add{margin:0}
+.as-add-btn{width:100%;text-align:left;border:0;background:transparent;font:inherit;font-size:13.5px;color:var(--muted);padding:6px;border-radius:6px;cursor:pointer}
+.as-add-btn:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
+.as-add-input[type=text]{background:var(--sheet);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px}
+.as-add-input[type=text]:focus{outline:none;border-color:var(--sel-line)}
+/* Liste */
+.as-list{background:var(--sheet);border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+.as-row{display:grid;grid-template-columns:minmax(260px,1fr) 150px minmax(160px,260px);min-width:600px;border-bottom:1px solid var(--line)}
+.as-row-h{font-size:12.5px;color:var(--muted)}
+.as-cell{padding:7px 12px;display:flex;align-items:center;gap:8px;min-width:0;border-right:1px solid var(--line)}
+.as-cell:last-child{border-right:0}
+.as-c-name .as-name{flex:1}
+.as-c-name .as-acts{flex:none}
+.as-c-proj{flex-wrap:wrap;gap:4px}
+.as-group-h{display:flex;align-items:center;gap:8px;width:100%;border:0;border-bottom:1px solid var(--line);background:transparent;font:inherit;font-weight:600;font-size:15px;padding:14px 12px 8px;color:var(--ink);cursor:pointer;text-align:left}
+.as-caret{display:inline-block;font-size:11px;color:var(--muted);transition:transform .15s}
+.as-group.closed .as-caret{transform:rotate(-90deg)}
+.as-group .as-add{border-bottom:1px solid var(--line);padding:2px 32px}
+.as-group .as-add-input[type=text]{margin:4px 0}
+@media (max-width:600px){.as-col{flex-basis:84vw;max-height:none}.as-tools{margin-left:0}}
 @media (max-width:480px){.mail{grid-template-columns:minmax(0,1fr)}.mail .acts{grid-row:auto;grid-column:1;justify-content:flex-start}}
 
 /* Auf-/zuklappbare Bereiche */
