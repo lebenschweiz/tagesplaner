@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Outlook verbinden</title>
+<style>body{font:16px system-ui,sans-serif;margin:40px 20px;text-align:center;color:#444;background:#fff}@media (prefers-color-scheme:dark){body{background:#1b1b1b;color:#ccc}}</style>
+</head>
+<body>
+<p id="msg">Verbindung wird abgeschlossen …</p>
+<script>
+// Rückkehr von der Microsoft-Anmeldung: Ergebnis an die App weitergeben (gleicher Browser, gleiche Adresse).
+try { localStorage.setItem("tagesplaner:outlookResult", JSON.stringify({ q: location.search, at: Date.now() })); } catch (e) {}
+let p = null;
+try { p = JSON.parse(localStorage.getItem("tagesplaner:outlookPending") || "null"); } catch (e) {}
+if (p && p.mode === "redirect") location.replace(p.back || "./");
+else { window.close(); document.getElementById("msg").textContent = "Fertig – du kannst dieses Fenster schließen."; }
+</script>
+</body>
+</html>
