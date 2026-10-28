@@ -3,6 +3,7 @@ import { AREAS, AREA_BY_ID, areaOf, summarizeDay, entriesOfDay } from "./areas.j
 import { listMessages, FILTERS } from "./gmail.js";
 import * as asana from "./asana.js";
 import { listEvents } from "./gcal.js";
+import { outlookReady, connectOutlook, finishOutlookRedirect, outlookToken, forgetOutlook, listOutlookEvents } from "./outlook.js";
 import { createAutocomplete } from "./autocomplete.js";
 import { createGoals } from "./goals.js";
 
@@ -94,7 +95,7 @@ let view = "day";
 let current = todayIso();
 let day = blankDay(current);
 let week = blankWeek(mondayOf(current));
-let meta = { vocab: null, templates: {}, habitNames: [], range: null, columns: [], calAuto: true, areaMap: {} };
+let meta = { vocab: null, templates: {}, habitNames: [], range: null, columns: [], calAuto: true, olAuto: true, areaMap: {} };
 let rendering = false;
 const timers = {};
 const dirty = new Set();
@@ -118,7 +119,7 @@ async function flush(what) {
     if (what === "week") { const w = clone(week); w.updatedAt = new Date().toISOString(); await store.set("weeks", w.monday, w); }
     if (what === "meta") {
       await store.set("meta", "vocab", meta.vocab || {});
-      await store.set("meta", "settings", { templates: meta.templates, habitNames: meta.habitNames, range: meta.range, columns: meta.columns, calAuto: meta.calAuto, areaMap: meta.areaMap });
+      await store.set("meta", "settings", { templates: meta.templates, habitNames: meta.habitNames, range: meta.range, columns: meta.columns, calAuto: meta.calAuto, olAuto: meta.olAuto, areaMap: meta.areaMap });
     }
     if (what === "goals") await store.set("meta", "goals", { ...goals.data(), updatedAt: new Date().toISOString() });
     if (!dirty.size) setStatus("Gespeichert " + new Date().toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" }));
@@ -1312,21 +1313,14 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden && store && asanaToken && Date.now() - asanaLoadedAt > 5 * 60 * 1000) loadAsana();
 });
 
-/* ================= Google Kalender ================= */
+/* ================= Kalender: Google und Outlook ================= */
 // Termine des Tages als Blöcke in „Geplant“. day.cal merkt sich pro Termin, welche Zeilen er belegt hat:
 // so kommt ein gelöschter Block nicht wieder, und ein verschobener oder abgesagter Termin räumt seine Blöcke auf,
 // solange sie noch unverändert sind. In „Gemacht“ und in belegte Zeilen wird nie geschrieben.
+// Beide Kalender teilen sich day.cal; Outlook-Termine beginnen mit „ms|“, damit jeder Abgleich nur seine eigenen anfasst.
 const CAL_MARK = "📅 ";
-let calEvents = null, calDate = null, calSeq = 0;
-try { $("calBox").open = localStorage.getItem("tagesplaner:calOpen") !== "0"; } catch { $("calBox").open = true; }
-$("calBox").addEventListener("toggle", () => { try { localStorage.setItem("tagesplaner:calOpen", $("calBox").open ? "1" : "0"); } catch {} });
+const isOutlookId = id => id.startsWith("ms|");
 
-function calState(msg, showConnect, connectLabel = "Kalender verbinden") {
-  $("calState").hidden = !msg;
-  $("calMsg").textContent = msg || "";
-  $("calConnect").hidden = !showConnect;
-  $("calConnect").textContent = connectLabel;
-}
 const calTimes = ev => {
   const out = [], a = Math.floor(ev.start / 15) * 15, b = Math.max(a + 15, Math.ceil(ev.end / 15) * 15);
   for (let m = a; m < b && m < 1440; m += 15) out.push(hm(m));
@@ -1334,8 +1328,8 @@ const calTimes = ev => {
 };
 const fmtSpan = ev => ev.allDay ? "ganztägig" : `${hm(ev.start)} – ${ev.end === 1440 ? "24:00" : hm(ev.end)}`;
 
-/** Gleicht day mit den Terminen ab. ids: nur diese Termine (neu) eintragen; sonst alle. Gibt Zähler zurück. */
-function applyCalendar(events, ids) {
+/** Gleicht day mit den Terminen einer Quelle ab. ids: nur diese Termine (neu) eintragen; sonst alle. Gibt Zähler zurück. */
+function applyCalendar(events, ids, outlook = false) {
   const known = day.cal && typeof day.cal === "object" ? day.cal : (day.cal = {});
   const n = { added: 0, removed: 0, busy: 0 };
   const clearOld = c => (c.t || []).filter(t => {
@@ -1344,6 +1338,7 @@ function applyCalendar(events, ids) {
     return true;
   }).length;
   if (!ids) for (const [id, c] of Object.entries(known)) {
+    if (isOutlookId(id) !== outlook) continue;
     const ev = events.find(e => e.id === id);
     if (ev && ev.updated === c.u) continue;
     const cleared = clearOld(c); delete known[id];
@@ -1367,93 +1362,140 @@ function applyCalendar(events, ids) {
   if (!Object.keys(known).length) delete day.cal;
   return n;
 }
-function calToast(n, auto) {
-  const parts = [];
-  if (n.added) parts.push(`${n.added} ${n.added === 1 ? "Termin" : "Termine"} aus dem Kalender eingetragen`);
-  if (n.removed) parts.push(`${n.removed} abgesagt und entfernt`);
-  if (n.busy) parts.push(`${n.busy} nicht eingetragen (Zeit schon belegt)`);
-  if (parts.length) toast(parts.join(" · "), !auto);
-  else if (!auto) toast("Alle Termine stehen schon im Plan.", false);
-}
-function renderEvents() {
-  const evs = calEvents || [];
-  $("calCount").textContent = calEvents ? (evs.length ? `${evs.length} ${evs.length === 1 ? "Termin" : "Termine"}` : "keine Termine") : "";
-  $("calImport").hidden = !evs.length;
-  const known = day.cal || {};
-  $("events").replaceChildren(...evs.map(ev => {
-    const li = document.createElement("li");
-    li.className = "mail event"; li.dataset.id = ev.id;
-    const inPlan = known[ev.id] && (ev.allDay || known[ev.id].t.some(t => day.slots[t]?.p === known[ev.id].p));
-    li.innerHTML = `<div class="when"><i></i><span></span><span></span></div><div class="subj"></div>` +
-      `<div class="acts"><button class="btn${inPlan ? " done" : ""}" data-cal="add">${inPlan ? "✓ Im Plan" : "+ Zeitplan"}</button>` +
-      (ev.link ? `<a class="btn" target="_blank" rel="noopener">Öffnen</a>` : "") + `</div>`;
-    const [when, cal] = li.querySelectorAll(".when span");
-    when.textContent = fmtSpan(ev); cal.textContent = ev.calendar;
-    if (ev.color) li.querySelector(".when i").style.background = ev.color;
-    li.querySelector(".subj").textContent = ev.title;
-    if (ev.link) li.querySelector("a").href = ev.link;
-    return li;
-  }));
-}
-async function loadCalendar() {
-  if (!store) return;
-  $("calAuto").checked = meta.calAuto !== false;
-  const token = cachedGoogleToken(CALENDAR_SCOPE), date = current, seq = ++calSeq;
-  if (calDate !== date) { calEvents = null; calDate = date; }
-  $("calRefresh").hidden = !token;
-  if (!token) {
-    calEvents = null; renderEvents();
-    if (store.mode !== "cloud") return calState("Der Kalender braucht die Google-Anmeldung. Melde dich ab und mit Google wieder an.", false);
-    return calState("Verbinde deinen Google Kalender: Die Termine des Tages erscheinen hier und werden als Blöcke in „Geplant“ eingetragen. Nur Lesen – in deinem Kalender wird nichts geändert.", true);
+
+/**
+ * Ein Kalender-Feld unter „Termine & Notizen“. cfg: px (Präfix der Element-IDs), listId, name, label,
+ * window (Name des Anmeldefensters), autoKey (Einstellung in meta), outlook, token() → Token oder null,
+ * unavailable() → Hinweis oder "", fetch(token, date) → Termine, connect(), forget(), idleMsg, errMsg(e).
+ */
+function calendarBox(cfg) {
+  const el = s => $(cfg.px + s);
+  let events = null, date = null, seq = 0;
+  try { el("Box").open = localStorage.getItem(`tagesplaner:${cfg.px}Open`) !== "0"; } catch { el("Box").open = true; }
+  el("Box").addEventListener("toggle", () => { try { localStorage.setItem(`tagesplaner:${cfg.px}Open`, el("Box").open ? "1" : "0"); } catch {} });
+
+  function state(msg, showConnect, connectLabel = "Kalender verbinden") {
+    el("State").hidden = !msg;
+    el("Msg").textContent = msg || "";
+    el("Connect").hidden = !showConnect;
+    el("Connect").textContent = connectLabel;
   }
-  if (!calEvents) calState("Lädt Termine …", false);
-  try {
-    const evs = await listEvents(token, date);
-    if (seq !== calSeq || date !== current) return;
-    calEvents = evs;
-    if ($("calAuto").checked && date >= todayIso()) {
-      const before = JSON.stringify([day.slots, day.appts, day.cal]);
-      const n = applyCalendar(evs);
-      if (JSON.stringify([day.slots, day.appts, day.cal]) !== before) { renderDay(); queueSave("day"); }
-      calToast(n, true);
+  function notify(n, auto) {
+    const parts = [];
+    if (n.added) parts.push(`${n.added} ${n.added === 1 ? "Termin" : "Termine"} aus ${cfg.name} eingetragen`);
+    if (n.removed) parts.push(`${n.removed} abgesagt und entfernt`);
+    if (n.busy) parts.push(`${n.busy} nicht eingetragen (Zeit schon belegt)`);
+    if (parts.length) toast(parts.join(" · "), !auto);
+    else if (!auto) toast("Alle Termine stehen schon im Plan.", false);
+  }
+  function render() {
+    const evs = events || [];
+    el("Count").textContent = events ? (evs.length ? `${evs.length} ${evs.length === 1 ? "Termin" : "Termine"}` : "keine Termine") : "";
+    el("Import").hidden = !evs.length;
+    const known = day.cal || {};
+    $(cfg.listId).replaceChildren(...evs.map(ev => {
+      const li = document.createElement("li");
+      li.className = "mail event"; li.dataset.id = ev.id;
+      const inPlan = known[ev.id] && (ev.allDay || known[ev.id].t.some(t => day.slots[t]?.p === known[ev.id].p));
+      li.innerHTML = `<div class="when"><i></i><span></span><span></span></div><div class="subj"></div>` +
+        `<div class="acts"><button class="btn${inPlan ? " done" : ""}" data-cal="add">${inPlan ? "✓ Im Plan" : "+ Zeitplan"}</button>` +
+        (ev.link ? `<a class="btn" target="_blank" rel="noopener">Öffnen</a>` : "") + `</div>`;
+      const [when, cal] = li.querySelectorAll(".when span");
+      when.textContent = fmtSpan(ev); cal.textContent = ev.calendar;
+      if (ev.color) li.querySelector(".when i").style.background = ev.color;
+      li.querySelector(".subj").textContent = ev.title;
+      if (ev.link) li.querySelector("a").href = ev.link;
+      return li;
+    }));
+  }
+  async function load() {
+    if (!store) return;
+    el("Auto").checked = meta[cfg.autoKey] !== false;
+    const d = current, s = ++seq;
+    if (date !== d) { events = null; date = d; }
+    let token = null;
+    try { token = await cfg.token(); } catch (e) { console.error(e); }
+    if (s !== seq) return;
+    el("Refresh").hidden = !token;
+    if (el("Disconnect")) el("Disconnect").hidden = !token;
+    if (!token) {
+      events = null; render();
+      const hint = cfg.unavailable();
+      return hint ? state(hint, false) : state(cfg.idleMsg, true);
     }
-    renderEvents();
-    calState(evs.length ? "" : "Keine Termine an diesem Tag.", false);
-  } catch (e) {
-    if (seq !== calSeq) return;
-    calEvents = null; renderEvents();
-    if (e.code === "expired") { forgetGoogleToken(); calState("Die Verbindung ist nach einer Stunde abgelaufen. Neu verbinden, damit neue Termine eingetragen werden.", true, "Neu verbinden"); }
-    else if (e.code === "forbidden") calState("Google erlaubt den Zugriff noch nicht: " + e.message + " – siehe README, Abschnitt Google Kalender.", true, "Erneut verbinden");
-    else calState("Termine konnten nicht geladen werden: " + e.message, true, "Erneut versuchen");
+    if (!events) state("Lädt Termine …", false);
+    try {
+      const evs = await cfg.fetch(token, d);
+      if (s !== seq || d !== current) return;
+      events = evs;
+      if (el("Auto").checked && d >= todayIso()) {
+        const before = JSON.stringify([day.slots, day.appts, day.cal]);
+        const n = applyCalendar(evs, null, cfg.outlook);
+        if (JSON.stringify([day.slots, day.appts, day.cal]) !== before) { renderDay(); queueSave("day"); }
+        notify(n, true);
+      }
+      render();
+      state(evs.length ? "" : "Keine Termine an diesem Tag.", false);
+    } catch (e) {
+      if (s !== seq) return;
+      events = null; render();
+      if (e.code === "expired") { cfg.forget(); el("Refresh").hidden = true; state("Die Verbindung ist abgelaufen. Neu verbinden, damit neue Termine eingetragen werden.", true, "Neu verbinden"); }
+      else if (e.code === "forbidden") state(cfg.errMsg(e), true, "Erneut verbinden");
+      else state("Termine konnten nicht geladen werden: " + e.message, true, "Erneut versuchen");
+    }
   }
-}
-$("calRefresh").onclick = loadCalendar;
-$("calConnect").onclick = async () => {
-  if ($("calConnect").textContent === "Erneut verbinden") forgetGoogleToken();
-  if (cachedGoogleToken(CALENDAR_SCOPE)) return loadCalendar();
-  calState("Bestätige den Zugriff im Google-Fenster …", false);
-  try { await connectGoogle(); loadCalendar(); loadGmail(); }
-  catch (e) {
-    console.error(e);
-    calState(e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request" ? "Abgebrochen." : "Verbinden fehlgeschlagen: " + (e.message || e.code), true);
+  function importEvents(ids) {
+    if (!events || !events.length) return;
+    snapshotForUndo();
+    const n = applyCalendar(events, ids, cfg.outlook);
+    renderDay(); render(); queueSave("day");
+    notify(n, false);
   }
-};
-$("calAuto").addEventListener("change", e => {
-  meta.calAuto = e.target.checked; queueSave("meta");
-  if (meta.calAuto) loadCalendar();
-});
-function importCalendar(ids) {
-  if (!calEvents || !calEvents.length) return;
-  snapshotForUndo();
-  const n = applyCalendar(calEvents, ids);
-  renderDay(); renderEvents(); queueSave("day");
-  calToast(n, false);
+  el("Refresh").onclick = load;
+  el("Connect").onclick = () => {
+    if (el("Connect").textContent === "Erneut verbinden") cfg.forget();
+    state(`Bestätige den Zugriff im ${cfg.window}-Fenster …`, false);
+    // connect() ohne await davor aufrufen, damit der Browser das Anmeldefenster nicht blockiert
+    cfg.connect().then(load, e => {
+      console.error(e);
+      const cancelled = ["auth/popup-closed-by-user", "auth/cancelled-popup-request", "cancelled"].includes(e.code);
+      state(cancelled ? "Abgebrochen." : "Verbinden fehlgeschlagen: " + (e.message || e.code), true);
+    });
+  };
+  if (el("Disconnect")) el("Disconnect").onclick = () => { cfg.forget(); events = null; load(); toast(`${cfg.label} getrennt`, false); };
+  el("Auto").addEventListener("change", e => {
+    meta[cfg.autoKey] = e.target.checked; queueSave("meta");
+    if (meta[cfg.autoKey]) load();
+  });
+  el("Import").onclick = () => importEvents(new Set(events.map(e => e.id)));
+  $(cfg.listId).addEventListener("click", e => {
+    const b = e.target.closest("[data-cal]"); if (!b) return;
+    importEvents(new Set([b.closest(".event").dataset.id]));
+  });
+  return { load, render };
 }
-$("calImport").onclick = () => importCalendar(new Set(calEvents.map(e => e.id)));
-$("events").addEventListener("click", e => {
-  const b = e.target.closest("[data-cal]"); if (!b) return;
-  importCalendar(new Set([b.closest(".event").dataset.id]));
+
+const gcal = calendarBox({
+  px: "cal", listId: "events", name: "dem Google Kalender", label: "Google Kalender", window: "Google", autoKey: "calAuto", outlook: false,
+  token: async () => cachedGoogleToken(CALENDAR_SCOPE),
+  unavailable: () => store.mode !== "cloud" ? "Der Kalender braucht die Google-Anmeldung. Melde dich ab und mit Google wieder an." : "",
+  idleMsg: "Verbinde deinen Google Kalender: Die Termine des Tages erscheinen hier und werden als Blöcke in „Geplant“ eingetragen. Nur Lesen – in deinem Kalender wird nichts geändert.",
+  fetch: listEvents,
+  connect: () => cachedGoogleToken(CALENDAR_SCOPE) ? Promise.resolve() : connectGoogle().then(() => { loadGmail(); }),
+  forget: forgetGoogleToken,
+  errMsg: e => "Google erlaubt den Zugriff noch nicht: " + e.message + " – siehe README, Abschnitt Google Kalender."
 });
+const olcal = calendarBox({
+  px: "ol", listId: "olEvents", name: "Outlook", label: "Outlook", window: "Microsoft", autoKey: "olAuto", outlook: true,
+  token: outlookToken,
+  unavailable: () => outlookReady ? "" : "Outlook ist noch nicht eingerichtet: Es fehlt die Anwendungs-ID in js/outlook-config.js – siehe README, Abschnitt Outlook Kalender.",
+  idleMsg: "Verbinde deinen Outlook-Kalender: Die Termine des Tages erscheinen hier und werden als Blöcke in „Geplant“ eingetragen. Nur Lesen – in Outlook wird nichts geändert.",
+  fetch: listOutlookEvents,
+  connect: connectOutlook,
+  forget: forgetOutlook,
+  errMsg: e => "Microsoft erlaubt den Zugriff noch nicht: " + e.message + " – siehe README, Abschnitt Outlook Kalender."
+});
+function loadCalendar() { gcal.load(); olcal.load(); }
 
 /* ================= Bereiche auf-/zuklappen ================= */
 // Zustand pro Bereich nur in diesem Browser (Komfort, keine Planer-Daten)
@@ -1478,6 +1520,7 @@ async function loadMeta() {
   meta.vocab = v || {}; meta.templates = (s && s.templates) || {}; meta.habitNames = (s && s.habitNames) || [];
   meta.range = s && s.range && s.range.end > s.range.start ? s.range : null;
   meta.calAuto = !(s && s.calAuto === false);
+  meta.olAuto = !(s && s.olAuto === false);
   meta.areaMap = s && s.areaMap && typeof s.areaMap === "object" ? s.areaMap : {};
   meta.columns = (s && Array.isArray(s.columns) ? s.columns : []).filter(c => c && c.id && c.name).map(c => ({ id: String(c.id), name: String(c.name), open: c.open !== false }));
   buildColumns();
@@ -1505,6 +1548,9 @@ async function start(s) {
     : "Ohne Konto: Einträge liegen nur in diesem Browser. Für alle Geräte mit Google anmelden.";
   setStatus("Lädt …");
   await loadMeta();
+  // Rückkehr von der Outlook-Anmeldung per Weiterleitung (wenn kein Fenster aufgehen durfte)
+  try { if (await finishOutlookRedirect()) toast("Outlook verbunden", false); }
+  catch (e) { console.error(e); toast("Outlook verbinden fehlgeschlagen: " + e.message, false); }
   let v = "day"; try { v = localStorage.getItem("tagesplaner:view") || "day"; } catch {}
   await loadDate(todayIso());
   setView(v);

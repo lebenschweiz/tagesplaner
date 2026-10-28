@@ -53,6 +53,11 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - Automatisch nur für heute und kommende Tage (abschaltbar); für vergangene Tage „Alle eintragen“ oder „+ Zeitplan“ pro Termin.
 - Nur Lesezugriff, im Kalender wird nichts geändert. Eine Verbindung gilt für Gmail und Kalender zusammen, jeweils ca. 1 Stunde; danach „Neu verbinden“.
 
+**Outlook Kalender** (mit oder ohne Google-Anmeldung)
+- Gleich wie der Google Kalender: Termine des Tages aus allen Outlook-Kalendern erscheinen unter „Termine & Notizen“ → **Outlook Kalender** und werden als Blöcke mit 📅 in „Geplant“ eingetragen. Ganztägige Termine (auch Geburtstage und Feiertage aus Outlook) landen unter „Termine & Notizen“.
+- Funktioniert mit privaten Outlook.com-/Hotmail-Konten und mit Geschäftskonten (Microsoft 365).
+- Nur Lesezugriff, in Outlook wird nichts geändert. Die Verbindung erneuert sich selbst und hält bis zu 24 Stunden (Vorgabe von Microsoft für Apps ohne Server), danach einmal „Neu verbinden“. Sie gilt nur für das Gerät, auf dem du verbunden hast.
+
 **Lebensbereiche**
 - Jeder Zeitblock und jedes To-do gehört zu einem von fünf Bereichen: Körper & Gesundheit, Arbeit & Leistung, Soziales Netzwerk, Materielle Sicherheit, Werte & Sinn.
 - Die App erkennt den Bereich anhand von Stichwörtern („Sport“ → Körper, „Rechnungen“ → Materielles, „Mama anrufen“ → Soziales). Gestrichelt = automatisch erkannt.
@@ -120,6 +125,28 @@ Im selben Google-Cloud-Projekt wie bei Gmail:
 
 Kommt „Google erlaubt den Zugriff noch nicht“, fehlt meist Schritt 1 (die API braucht nach dem Aktivieren ein paar Minuten) oder beim Verbinden wurde das Kalender-Häkchen nicht gesetzt – dann „Erneut verbinden“.
 
+## Outlook Kalender einrichten (einmalig, ca. 5 Minuten)
+
+Microsoft muss die App einmal kennen. Dafür legst du eine „App-Registrierung“ an. Das ist kostenlos, es braucht kein Abo.
+
+1. <https://entra.microsoft.com> öffnen und mit deinem Microsoft-Konto anmelden (bei einem Geschäftskonto mit diesem).
+   Mit einem privaten Outlook.com-Konto meldet Microsoft eventuell, dass kein Verzeichnis vorhanden ist. Dann einmal unter <https://portal.azure.com> anmelden und das kostenlose Konto anlegen; danach geht Schritt 2.
+2. Links **Identität → Anwendungen → App-Registrierungen** → oben **+ Neue Registrierung**.
+3. Ausfüllen:
+   - **Name:** `Tagesplaner`
+   - **Unterstützte Kontotypen:** „Konten in einem beliebigen Organisationsverzeichnis … und persönliche Microsoft-Konten“ (die dritte Option)
+   - **Umleitungs-URI:** links **Single-Page-Anwendung (SPA)** wählen, rechts `https://lebenschweiz.github.io/tagesplaner/ms-auth.html`
+   - → **Registrieren**
+4. Auf der Übersichtsseite die **Anwendungs-ID (Client)** kopieren (sieht aus wie `1a2b3c4d-…`).
+5. In `js/outlook-config.js` bei `clientId: ""` zwischen die Anführungszeichen einfügen und speichern (oder die ID Claude schicken).
+6. In der App unter „Termine & Notizen“ → **Outlook Kalender** → **„Kalender verbinden“** → im Microsoft-Fenster anmelden und den Lesezugriff auf Kalender erlauben.
+
+Ein Geheimnis („Client Secret“) braucht es nicht, und unter „API-Berechtigungen“ musst du nichts eintragen: Die App fragt beim Verbinden selbst nach „Kalender lesen“. Bei einem Firmenkonto kann es sein, dass die IT-Abteilung das erst freigeben muss („Administratorgenehmigung erforderlich“).
+
+Zum lokalen Ausprobieren in Schritt 3 zusätzlich die Umleitungs-URI `http://localhost:8000/ms-auth.html` eintragen (unter **Authentifizierung → URI hinzufügen**).
+
+Wo die Verbindung liegt: nur in diesem Browser (localStorage), nicht im Konto. Sie geht nur direkt an `login.microsoftonline.com` und `graph.microsoft.com`. „Trennen“ löscht sie; ganz widerrufen kannst du den Zugriff unter <https://account.live.com/consent/Manage> (privat) bzw. <https://myapps.microsoft.com> (Geschäftskonto).
+
 ## Asana verbinden (einmalig, 1 Minute)
 
 1. <https://app.asana.com/0/my-apps> öffnen → **Neuer Zugriffstoken** (Personal access token) → Name z. B. „Tagesplaner“ → Schlüssel kopieren.
@@ -151,6 +178,9 @@ Für die Google-Anmeldung lokal zusätzlich `localhost` als autorisierte Domain 
 - `js/gmail.js` – Gmail lesen (Liste, Betreff, Absender)
 - `js/asana.js` – Asana: eigene Aufgaben lesen und abhaken
 - `js/gcal.js` – Google Kalender lesen (Termine eines Tages)
+- `js/outlook.js` – Outlook Kalender lesen (Microsoft-Anmeldung und Termine eines Tages)
+- `js/outlook-config.js` – Anwendungs-ID für Outlook
+- `ms-auth.html` – Rückkehrseite der Microsoft-Anmeldung
 - `js/store.js` – Speicher (Firestore oder localStorage)
 - `js/firebase-config.js` – deine Firebase-Konfiguration
 - `firestore.rules` – Zugriffsregeln für die Datenbank

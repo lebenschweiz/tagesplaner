@@ -259,6 +259,24 @@
                   <ul class="mails events" id="events"></ul>
                 </div>
               </details>
+              <details class="gmail gcal" id="olBox">
+                <summary><span class="label">Outlook Kalender</span><span class="sub" id="olCount"></span></summary>
+                <div class="gmail-body">
+                  <div class="gmail-bar">
+                    <label class="habit"><input type="checkbox" class="check" id="olAuto"> Termine automatisch in „Geplant“ eintragen</label>
+                    <div class="row-btns">
+                      <button class="btn small" id="olImport" hidden>Alle eintragen</button>
+                      <button class="btn small" id="olRefresh" hidden>Aktualisieren</button>
+                      <button class="btn small" id="olDisconnect" hidden>Trennen</button>
+                    </div>
+                  </div>
+                  <div id="olState" class="gmail-state">
+                    <p class="sub" id="olMsg">Verbinde deinen Outlook-Kalender: Die Termine des Tages erscheinen hier und werden als Blöcke in „Geplant“ eingetragen. Nur Lesen – in Outlook wird nichts geändert.</p>
+                    <button class="btn primary" id="olConnect">Kalender verbinden</button>
+                  </div>
+                  <ul class="mails events" id="olEvents"></ul>
+                </div>
+              </details>
               <details class="gmail" id="gmailBox">
                 <summary><span class="label">Gmail</span><span class="sub" id="gmailCount"></span></summary>
                 <div class="gmail-body">
