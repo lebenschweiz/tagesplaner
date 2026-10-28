@@ -146,6 +146,7 @@ Für die Google-Anmeldung lokal zusätzlich `localhost` als autorisierte Domain 
 - `index.html` – Seitenstruktur
 - `css/style.css` – Gestaltung (hell/dunkel automatisch)
 - `js/app.js` – Tag, Woche, Kopieren/Ausfüllen, Übersicht
+- `js/quotes.js` – Satz des Tages: rund 690 Sprüche, jeden Tag ein anderer (Wiederholung erst nach knapp 2 Jahren)
 - `js/autocomplete.js` – Excel-artige Vorschläge
 - `js/goals.js` – Ziele mit Etappen und Fristen
 - `js/gmail.js` – Gmail lesen (Liste, Betreff, Absender)
