@@ -5,6 +5,7 @@ import * as asana from "./asana.js";
 import { listEvents } from "./gcal.js";
 import { createAutocomplete } from "./autocomplete.js";
 import { createGoals } from "./goals.js";
+import { quoteFor } from "./quotes.js";
 
 /* ================= Grundlagen ================= */
 const $ = id => document.getElementById(id);
@@ -25,15 +26,6 @@ function isoWeek(s) {
 const DAY_LETTERS = ["M", "D", "M", "D", "F", "S", "S"];
 const DAY_NAMES = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 const DAY_SHORT = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
-const QUOTES = [
-  ["Ich betrachte jeden Misserfolg als eine Stufe zum Erfolg.", "Inayat Khan"],
-  ["Wer immer tut, was er schon kann, bleibt immer das, was er schon ist.", "Henry Ford"],
-  ["Es ist nicht wenig Zeit, die wir haben, sondern es ist viel Zeit, die wir nicht nutzen.", "Seneca"],
-  ["Auch aus Steinen, die einem in den Weg gelegt werden, kann man Schönes bauen.", "Johann Wolfgang von Goethe"],
-  ["Der beste Weg, die Zukunft vorauszusagen, ist, sie zu gestalten.", "Willy Brandt"],
-  ["Wir sind, was wir wiederholt tun.", "Will Durant"],
-  ["Ruhe ist die Mutter des Erfolgs.", "Sprichwort"]
-];
 // Zeitplan: alle 15-Minuten-Blöcke des Tages; angezeigt wird der gewählte Zeitraum (Standard 05:15 – 20:30)
 const hm = m => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 const toMin = t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
@@ -342,7 +334,7 @@ function renderDay() {
     return `<button type="button" data-goto="${ds}"${i === wd ? ' aria-current="date"' : ""}${ds === tIso ? ' class="today"' : ""} aria-label="${DAY_NAMES[i]}, ${parse(ds).toLocaleDateString("de-CH")}"><span>${n}</span><b>${parse(ds).getDate()}</b></button>`;
   }).join("");
   $("copyWeekdayBtn").textContent = `Zeitplan vom letzten ${DAY_NAMES[wd]}`;
-  const q = QUOTES[Math.floor(d.getTime() / 864e5) % QUOTES.length];
+  const q = quoteFor(current);
   const qq = document.createElement("q"); qq.textContent = q[0];
   const sm = document.createElement("small"); sm.textContent = q[1];
   $("quote").replaceChildren(qq, sm);
