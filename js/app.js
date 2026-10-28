@@ -1,6 +1,8 @@
-import { watchAuth, signInWithGoogle, useLocal, cloudAvailable, connectGmail, cachedGmailToken, forgetGmailToken } from "./store.js";
+import { watchAuth, signInWithGoogle, useLocal, cloudAvailable, connectGoogle, cachedGoogleToken, forgetGoogleToken, GMAIL_SCOPE, CALENDAR_SCOPE } from "./store.js";
+import { AREAS, AREA_BY_ID, areaOf, summarizeDay, entriesOfDay } from "./areas.js";
 import { listMessages, FILTERS } from "./gmail.js";
 import * as asana from "./asana.js";
+import { listEvents } from "./gcal.js";
 import { createAutocomplete } from "./autocomplete.js";
 import { createGoals } from "./goals.js";
 
@@ -68,7 +70,7 @@ function blankWeek(monday) {
   return { monday,
     habits: Array.from({ length: HABIT_ROWS }, () => ({ name: "", days: [false, false, false, false, false, false, false] })),
     goals: [0, 1].map(() => ({ text: "", steps: list(3) })),
-    meaning: null, meaningNotes: "", wins: "" };
+    meaning: null, meaningNotes: "", wins: "", areaRatings: {} };
 }
 function normWeek(x, monday) {
   const b = blankWeek(monday);
@@ -92,7 +94,7 @@ let view = "day";
 let current = todayIso();
 let day = blankDay(current);
 let week = blankWeek(mondayOf(current));
-let meta = { vocab: null, templates: {}, habitNames: [], range: null, columns: [] };
+let meta = { vocab: null, templates: {}, habitNames: [], range: null, columns: [], calAuto: true, areaMap: {} };
 let rendering = false;
 const timers = {};
 const dirty = new Set();
@@ -116,7 +118,7 @@ async function flush(what) {
     if (what === "week") { const w = clone(week); w.updatedAt = new Date().toISOString(); await store.set("weeks", w.monday, w); }
     if (what === "meta") {
       await store.set("meta", "vocab", meta.vocab || {});
-      await store.set("meta", "settings", { templates: meta.templates, habitNames: meta.habitNames, range: meta.range, columns: meta.columns });
+      await store.set("meta", "settings", { templates: meta.templates, habitNames: meta.habitNames, range: meta.range, columns: meta.columns, calAuto: meta.calAuto, areaMap: meta.areaMap });
     }
     if (what === "goals") await store.set("meta", "goals", { ...goals.data(), updatedAt: new Date().toISOString() });
     if (!dirty.size) setStatus("Gespeichert " + new Date().toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" }));
@@ -377,6 +379,10 @@ function decorateDay() {
     r.classList.toggle("met", !!d && !pause);
     r.classList.toggle("diff", !!d && !!p && !pause && !same(p, d));
     r.classList.toggle("missed", !pause && !!p && !d && (past || (isToday && sm + 15 <= nm)));
+    const pA = !pause && p ? areaOf(p, meta.areaMap) : null, dA = !pause && d ? areaOf(d, meta.areaMap) : null;
+    const showA = dA || pA;
+    if (showA) r.dataset.acArea = showA.id; else delete r.dataset.acArea;
+    r.toggleAttribute("data-area", !!dA); r.toggleAttribute("data-parea", !!pA);
     const isNow = isToday && nm >= sm && nm < sm + 15;
     r.classList.toggle("now", isNow);
     if (isNow) { r.style.setProperty("--nowp", ((nm - sm) / 15).toFixed(3)); r.dataset.now = hm(nm); }
@@ -425,6 +431,7 @@ function decorateDay() {
   const journal = [...day.grateful, ...day.forward, ...day.affirm];
   $("journalCount").textContent = `${journal.filter(x => x.trim()).length} von ${journal.length} ausgefüllt`;
   renderLoad();
+  renderAreas();
   positionHandle();
 }
 
@@ -452,6 +459,110 @@ function renderLoad() {
   $("loadDone").innerHTML = loadList(".d");
 }
 setInterval(() => { if (view === "day") decorateDay(); }, 60000);
+
+/* ================= Lebensbereiche ================= */
+const areaColor = id => `data-ac-area="${id}"`;
+function renderAreas() {
+  const sum = summarizeDay(day, meta.areaMap);
+  const maxMin = Math.max(60, ...Object.values(sum).map(o => Math.max(o.plan, o.done)));
+  const totalDone = AREAS.reduce((a, x) => a + sum[x.id].done, 0);
+  const line = (id, name, o) => {
+    const parts = [];
+    if (o.done || o.plan) parts.push(o.done ? `${fmtDur(o.done)}${o.plan && o.plan !== o.done ? ` <small>/ ${fmtDur(o.plan)} geplant</small>` : ""}` : `<small>${fmtDur(o.plan)} geplant</small>`);
+    if (o.todo) parts.push(`${o.todoDone}/${o.todo} To-do${o.todo > 1 ? "s" : ""}`);
+    return `<li ${areaColor(id)} class="${id === "none" ? "none" : ""}"><span class="n"><i class="adot"></i><span>${esc(name)}</span></span>` +
+      `<span class="v">${parts.join(" · ") || "–"}</span>` +
+      `<span class="track"><i class="pl" style="width:${o.plan / maxMin * 100}%"></i><i class="dn" style="width:${o.done / maxMin * 100}%"></i></span></li>`;
+  };
+  const n = sum.none;
+  $("areaBars").innerHTML = AREAS.map(a => line(a.id, a.name, sum[a.id])).join("") + (n.done || n.plan || n.todo ? line("none", "Ohne Bereich", n) : "");
+  $("areasSum").textContent = totalDone ? `${fmtDur(totalDone)} gemacht · ${AREAS.filter(a => sum[a.id].done || sum[a.id].todoDone).length} von 5 Bereichen` : "";
+  // Hinweis: Bereich ohne Zeit, obwohl der Tag schon gefüllt ist
+  const empty = AREAS.filter(a => !sum[a.id].done && !sum[a.id].plan && !sum[a.id].todo);
+  $("areaTip").textContent = totalDone >= 120 && empty.length && empty.length < 5
+    ? `Heute noch ohne Zeit: ${empty.map(a => a.short).join(", ")}. Schon 15 Minuten zählen – z. B. ${tipFor(empty[0].id)}.` : "";
+  const entries = entriesOfDay(day);
+  $("areaEntries").innerHTML = entries.length ? entries.map(e => {
+    const a = areaOf(e.name, meta.areaMap);
+    const chip = a ? `<button type="button" class="achip${a.sure ? "" : " guess"}" ${areaColor(a.id)} data-akey="${esc(e.key)}" data-aname="${esc(e.name)}"><i class="adot"></i>${esc(AREA_BY_ID[a.id].short)}</button>`
+      : `<button type="button" class="achip empty" data-ac-area="none" data-akey="${esc(e.key)}" data-aname="${esc(e.name)}">+ Bereich</button>`;
+    const amount = [e.min ? fmtDur(e.min) : "", e.todos ? `${e.todos} To-do${e.todos > 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ");
+    return `<li><span class="en" title="${esc(e.name)}">${esc(e.name)}</span><span class="em">${amount}</span>${chip}</li>`;
+  }).join("") : `<li class="sub">Sobald du im Zeitplan oder bei den To-dos etwas einträgst, erscheint es hier.</li>`;
+}
+function tipFor(id) {
+  return { body: "ein Spaziergang oder Dehnen", work: "an einem Hobby oder Kurs weitermachen", social: "jemanden anrufen",
+    material: "Rechnungen oder Budget anschauen", meaning: "fünf Minuten Tagebuch oder Stille" }[id];
+}
+let pickKey = null;
+function openAreaPick(btn) {
+  pickKey = btn.dataset.akey;
+  const cur = Object.prototype.hasOwnProperty.call(meta.areaMap, pickKey) ? meta.areaMap[pickKey] : null;
+  const box = $("areaPick");
+  box.innerHTML = `<div class="sub" style="padding:4px 10px">„${esc(btn.dataset.aname)}“ gehört zu …</div>` +
+    AREAS.map(a => `<button type="button" role="menuitemradio" aria-checked="${cur === a.id}" data-pick="${a.id}" ${areaColor(a.id)}><i class="adot"></i><span>${esc(a.name)}<small>${esc(a.hint)}</small></span></button>`).join("") +
+    `<button type="button" role="menuitemradio" aria-checked="${cur === ""}" data-pick="" ${areaColor("none")}><i class="adot"></i><span>Keinem Bereich</span></button>` +
+    (cur !== null ? `<button type="button" data-pick="auto"><span class="sub">Automatisch erkennen</span></button>` : "");
+  box.hidden = false;
+  const r = btn.getBoundingClientRect(), w = box.offsetWidth, h = box.offsetHeight;
+  box.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.right - w)) + "px";
+  box.style.top = (r.bottom + h + 8 < innerHeight ? r.bottom + 6 : Math.max(8, r.top - h - 6)) + "px";
+  box.querySelector('[aria-checked="true"]')?.focus() || box.querySelector("button").focus();
+}
+function closeAreaPick() { $("areaPick").hidden = true; pickKey = null; }
+document.addEventListener("click", e => {
+  const chip = e.target.closest("[data-akey]");
+  if (chip) { e.stopPropagation(); return openAreaPick(chip); }
+  const pick = e.target.closest("[data-pick]");
+  if (pick && pickKey != null) {
+    if (pick.dataset.pick === "auto") delete meta.areaMap[pickKey]; else meta.areaMap[pickKey] = pick.dataset.pick;
+    closeAreaPick(); queueSave("meta"); decorateDay();
+    if (view === "week" && weekDays.length) renderOverview();
+    return;
+  }
+  if (!e.target.closest("#areaPick")) closeAreaPick();
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("areaPick").hidden) closeAreaPick(); });
+window.addEventListener("scroll", () => { if (!$("areaPick").hidden) closeAreaPick(); }, { passive: true });
+
+function renderAreaWeek() {
+  const sums = weekDays.map(d => summarizeDay(d, meta.areaMap));
+  const ti = todayIso();
+  const tot = Object.fromEntries([...AREAS.map(a => a.id), "none"].map(id => [id, sums.reduce((a, x) => a + x[id].done, 0)]));
+  const all = AREAS.reduce((a, x) => a + tot[x.id], 0);
+  const maxDay = Math.max(60, ...sums.flatMap(x => AREAS.map(a => x[a.id].done)));
+  const head = `<thead><tr><th></th>${weekDays.map((d, i) => `<th data-open="${d.date}" class="${d.date === ti ? "today" : ""}">${DAY_SHORT[i]} ${parse(d.date).getDate()}.</th>`).join("")}<th>Woche</th></tr></thead>`;
+  const body = AREAS.map(a => `<tr ${areaColor(a.id)}><th><i class="adot"></i>${esc(a.short)}</th>` +
+    sums.map(x => { const m = x[a.id].done, t = x[a.id].todoDone; return m || t ? `<td>${m ? fmtDur(m) : ""}${t ? `${m ? " · " : ""}${t} ✓` : ""}<span class="mini" style="width:${m / maxDay * 100}%"></span></td>` : `<td class="sub">–</td>`; }).join("") +
+    `<td class="sum">${tot[a.id] ? `${fmtDur(tot[a.id])} · ${Math.round(tot[a.id] / (all || 1) * 100)} %` : "–"}</td></tr>`).join("");
+  $("areaWeek").innerHTML = head + "<tbody>" + body + "</tbody>";
+  $("weekAreasSum").textContent = all ? `${fmtDur(all)} zugeordnet${tot.none ? ` · ${fmtDur(tot.none)} ohne Bereich` : ""}` : "";
+  // Lebensrad
+  const ratings = week.areaRatings || {};
+  $("areaRatings").innerHTML = AREAS.map(a => `<div class="ar" ${areaColor(a.id)}><span class="n"><i class="adot"></i>${esc(a.short)}</span>` +
+    `<div class="scale" role="radiogroup" aria-label="${esc(a.name)} 1 bis 10">${Array.from({ length: 10 }, (_, i) => `<button type="button" role="radio" data-rate-area="${a.id}" data-v="${i + 1}" aria-checked="${ratings[a.id] === i + 1}">${i + 1}</button>`).join("")}</div></div>`).join("");
+  $("wheel").innerHTML = wheelSvg(ratings, AREAS.map(a => all ? tot[a.id] / all : 0));
+}
+function wheelSvg(ratings, shares) {
+  const cx = 150, cy = 140, R = 100, n = AREAS.length;
+  const pt = (i, r) => { const ang = -Math.PI / 2 + i * 2 * Math.PI / n; return [cx + r * Math.cos(ang), cy + r * Math.sin(ang)]; };
+  const poly = vals => vals.map((v, i) => pt(i, v * R).map(x => x.toFixed(1)).join(",")).join(" ");
+  let g = "";
+  [0.2, 0.4, 0.6, 0.8, 1].forEach(f => { g += `<polygon points="${poly(AREAS.map(() => f))}" fill="none" stroke="var(--line)" stroke-width="1"/>`; });
+  AREAS.forEach((a, i) => {
+    const [x, y] = pt(i, R), [lx, ly] = pt(i, R + 20);
+    g += `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)"/>`;
+    g += `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="${Math.abs(lx - cx) < 5 ? "middle" : lx > cx ? "start" : "end"}">${esc(a.short)}</text>`;
+  });
+  const maxShare = Math.max(...shares);
+  if (maxShare > 0) g += `<polygon points="${poly(shares.map(s => s / maxShare))}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  const rated = AREAS.some(a => ratings[a.id]);
+  if (rated) {
+    g += `<polygon points="${poly(AREAS.map(a => (ratings[a.id] || 0) / 10))}" fill="var(--gold)" fill-opacity=".18" stroke="var(--gold)" stroke-width="2"/>`;
+    AREAS.forEach((a, i) => { if (!ratings[a.id]) return; const [x, y] = pt(i, ratings[a.id] / 10 * R); g += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="var(--a-${a.id})" stroke="var(--sheet)" stroke-width="1.5"/>`; });
+  }
+  return `<svg viewBox="0 0 300 280" role="img" aria-label="Lebensrad">${g}</svg>`;
+}
 
 /* ================= Eingaben Tag ================= */
 function slotFromRow(r) {
@@ -815,10 +926,19 @@ function renderOverview() {
     `<span class="chip">Getrackt <b>${(tracked / 4).toLocaleString("de-CH")} h</b></span>` +
     `<span class="chip">Gewohnheiten <b>${habitDone} / ${habitTotal}</b></span>` +
     (() => { const r = weekDays.map(d => d.selfRating).filter(Boolean); return r.length ? `<span class="chip">Ø Tag <b>${(r.reduce((a, b) => a + b, 0) / r.length).toLocaleString("de-CH", { maximumFractionDigits: 1 })} / 10</b></span>` : ""; })();
+  renderAreaWeek();
 }
 $("weekView").addEventListener("click", e => {
   const o = e.target.closest("[data-open]");
   if (o) { setView("day"); loadDate(o.dataset.open); return; }
+  const ra = e.target.closest("[data-rate-area]");
+  if (ra) {
+    snapshotForUndo();
+    week.areaRatings = Object.assign({}, week.areaRatings);
+    const id = ra.dataset.rateArea, v = +ra.dataset.v;
+    if (week.areaRatings[id] === v) delete week.areaRatings[id]; else week.areaRatings[id] = v;
+    renderAreaWeek(); queueSave("week"); return;
+  }
   const s = e.target.closest("#scale button");
   if (s) { snapshotForUndo(); week.meaning = week.meaning === +s.dataset.v ? null : +s.dataset.v; renderWeek(); queueSave("week"); }
 });
@@ -891,6 +1011,7 @@ async function loadDate(date, silent) {
   renderAll();
   if (asanaTasks.length) renderAsana();
   if (!silent) setStatus(d ? "Geladen" : "Neuer Tag");
+  loadCalendar();
 }
 
 /* ================= Export / Import ================= */
@@ -935,7 +1056,7 @@ function paintGmailFilters() {
 }
 async function loadGmail() {
   paintGmailFilters();
-  const token = cachedGmailToken();
+  const token = cachedGoogleToken(GMAIL_SCOPE);
   $("gmailRefresh").hidden = !token;
   if (!token) {
     $("mails").replaceChildren(); $("gmailCount").textContent = "";
@@ -951,7 +1072,7 @@ async function loadGmail() {
     gmailState(mails.length ? "" : `Keine Mails unter „${FILTERS[gmailFilter].label}“.`, false);
   } catch (e) {
     $("mails").replaceChildren();
-    if (e.code === "expired") { forgetGmailToken(); gmailState("Die Verbindung ist nach einer Stunde abgelaufen.", true, "Neu verbinden"); }
+    if (e.code === "expired") { forgetGoogleToken(); gmailState("Die Verbindung ist nach einer Stunde abgelaufen.", true, "Neu verbinden"); }
     else if (e.code === "forbidden") gmailState("Google erlaubt den Zugriff noch nicht: " + e.message + " – siehe README, Abschnitt Gmail.", true, "Erneut versuchen");
     else gmailState("Mails konnten nicht geladen werden: " + e.message, true, "Erneut versuchen");
   } finally { gmailLoading = false; }
@@ -987,9 +1108,9 @@ $("gmailFilters").addEventListener("click", e => {
 });
 $("gmailRefresh").onclick = loadGmail;
 $("gmailConnect").onclick = async () => {
-  if (cachedGmailToken()) return loadGmail();
+  if (cachedGoogleToken(GMAIL_SCOPE)) return loadGmail();
   gmailState("Bestätige den Zugriff im Google-Fenster …", false);
-  try { await connectGmail(); loadGmail(); }
+  try { await connectGoogle(); loadGmail(); loadCalendar(); }
   catch (e) {
     console.error(e);
     gmailState(e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request" ? "Abgebrochen." : "Verbinden fehlgeschlagen: " + (e.message || e.code), true);
@@ -1191,6 +1312,149 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden && store && asanaToken && Date.now() - asanaLoadedAt > 5 * 60 * 1000) loadAsana();
 });
 
+/* ================= Google Kalender ================= */
+// Termine des Tages als Blöcke in „Geplant“. day.cal merkt sich pro Termin, welche Zeilen er belegt hat:
+// so kommt ein gelöschter Block nicht wieder, und ein verschobener oder abgesagter Termin räumt seine Blöcke auf,
+// solange sie noch unverändert sind. In „Gemacht“ und in belegte Zeilen wird nie geschrieben.
+const CAL_MARK = "📅 ";
+let calEvents = null, calDate = null, calSeq = 0;
+try { $("calBox").open = localStorage.getItem("tagesplaner:calOpen") !== "0"; } catch { $("calBox").open = true; }
+$("calBox").addEventListener("toggle", () => { try { localStorage.setItem("tagesplaner:calOpen", $("calBox").open ? "1" : "0"); } catch {} });
+
+function calState(msg, showConnect, connectLabel = "Kalender verbinden") {
+  $("calState").hidden = !msg;
+  $("calMsg").textContent = msg || "";
+  $("calConnect").hidden = !showConnect;
+  $("calConnect").textContent = connectLabel;
+}
+const calTimes = ev => {
+  const out = [], a = Math.floor(ev.start / 15) * 15, b = Math.max(a + 15, Math.ceil(ev.end / 15) * 15);
+  for (let m = a; m < b && m < 1440; m += 15) out.push(hm(m));
+  return out;
+};
+const fmtSpan = ev => ev.allDay ? "ganztägig" : `${hm(ev.start)} – ${ev.end === 1440 ? "24:00" : hm(ev.end)}`;
+
+/** Gleicht day mit den Terminen ab. ids: nur diese Termine (neu) eintragen; sonst alle. Gibt Zähler zurück. */
+function applyCalendar(events, ids) {
+  const known = day.cal && typeof day.cal === "object" ? day.cal : (day.cal = {});
+  const n = { added: 0, removed: 0, busy: 0 };
+  const clearOld = c => (c.t || []).filter(t => {
+    const s = day.slots[t]; if (!s || s.p !== c.p) return false;
+    s.p = ""; if (!s.d && !s.b && !s.x) delete day.slots[t];
+    return true;
+  }).length;
+  if (!ids) for (const [id, c] of Object.entries(known)) {
+    const ev = events.find(e => e.id === id);
+    if (ev && ev.updated === c.u) continue;
+    const cleared = clearOld(c); delete known[id];
+    if (!ev && cleared) n.removed++;
+  }
+  for (const ev of events) {
+    if (ids ? !ids.has(ev.id) : known[ev.id]) continue;
+    if (known[ev.id]) { clearOld(known[ev.id]); delete known[ev.id]; }
+    const p = CAL_MARK + ev.title;
+    if (ev.allDay) {
+      // Ganztägige Termine gehören zu „Termine & Notizen“, nicht in den Zeitplan
+      if (!day.appts.split("\n").some(l => l.trim() === p)) { day.appts = (day.appts.trim() ? day.appts.replace(/\s+$/, "") + "\n" : "") + p; n.added++; }
+      known[ev.id] = { u: ev.updated, p, t: [] };
+      continue;
+    }
+    const t = calTimes(ev).filter(x => { const s = day.slots[x]; return !s || (!s.p && !s.b); });
+    t.forEach(x => { day.slots[x] = Object.assign({ p: "", d: "" }, day.slots[x], { p }); });
+    known[ev.id] = { u: ev.updated, p, t };
+    if (t.length) n.added++; else n.busy++;
+  }
+  if (!Object.keys(known).length) delete day.cal;
+  return n;
+}
+function calToast(n, auto) {
+  const parts = [];
+  if (n.added) parts.push(`${n.added} ${n.added === 1 ? "Termin" : "Termine"} aus dem Kalender eingetragen`);
+  if (n.removed) parts.push(`${n.removed} abgesagt und entfernt`);
+  if (n.busy) parts.push(`${n.busy} nicht eingetragen (Zeit schon belegt)`);
+  if (parts.length) toast(parts.join(" · "), !auto);
+  else if (!auto) toast("Alle Termine stehen schon im Plan.", false);
+}
+function renderEvents() {
+  const evs = calEvents || [];
+  $("calCount").textContent = calEvents ? (evs.length ? `${evs.length} ${evs.length === 1 ? "Termin" : "Termine"}` : "keine Termine") : "";
+  $("calImport").hidden = !evs.length;
+  const known = day.cal || {};
+  $("events").replaceChildren(...evs.map(ev => {
+    const li = document.createElement("li");
+    li.className = "mail event"; li.dataset.id = ev.id;
+    const inPlan = known[ev.id] && (ev.allDay || known[ev.id].t.some(t => day.slots[t]?.p === known[ev.id].p));
+    li.innerHTML = `<div class="when"><i></i><span></span><span></span></div><div class="subj"></div>` +
+      `<div class="acts"><button class="btn${inPlan ? " done" : ""}" data-cal="add">${inPlan ? "✓ Im Plan" : "+ Zeitplan"}</button>` +
+      (ev.link ? `<a class="btn" target="_blank" rel="noopener">Öffnen</a>` : "") + `</div>`;
+    const [when, cal] = li.querySelectorAll(".when span");
+    when.textContent = fmtSpan(ev); cal.textContent = ev.calendar;
+    if (ev.color) li.querySelector(".when i").style.background = ev.color;
+    li.querySelector(".subj").textContent = ev.title;
+    if (ev.link) li.querySelector("a").href = ev.link;
+    return li;
+  }));
+}
+async function loadCalendar() {
+  if (!store) return;
+  $("calAuto").checked = meta.calAuto !== false;
+  const token = cachedGoogleToken(CALENDAR_SCOPE), date = current, seq = ++calSeq;
+  if (calDate !== date) { calEvents = null; calDate = date; }
+  $("calRefresh").hidden = !token;
+  if (!token) {
+    calEvents = null; renderEvents();
+    if (store.mode !== "cloud") return calState("Der Kalender braucht die Google-Anmeldung. Melde dich ab und mit Google wieder an.", false);
+    return calState("Verbinde deinen Google Kalender: Die Termine des Tages erscheinen hier und werden als Blöcke in „Geplant“ eingetragen. Nur Lesen – in deinem Kalender wird nichts geändert.", true);
+  }
+  if (!calEvents) calState("Lädt Termine …", false);
+  try {
+    const evs = await listEvents(token, date);
+    if (seq !== calSeq || date !== current) return;
+    calEvents = evs;
+    if ($("calAuto").checked && date >= todayIso()) {
+      const before = JSON.stringify([day.slots, day.appts, day.cal]);
+      const n = applyCalendar(evs);
+      if (JSON.stringify([day.slots, day.appts, day.cal]) !== before) { renderDay(); queueSave("day"); }
+      calToast(n, true);
+    }
+    renderEvents();
+    calState(evs.length ? "" : "Keine Termine an diesem Tag.", false);
+  } catch (e) {
+    if (seq !== calSeq) return;
+    calEvents = null; renderEvents();
+    if (e.code === "expired") { forgetGoogleToken(); calState("Die Verbindung ist nach einer Stunde abgelaufen. Neu verbinden, damit neue Termine eingetragen werden.", true, "Neu verbinden"); }
+    else if (e.code === "forbidden") calState("Google erlaubt den Zugriff noch nicht: " + e.message + " – siehe README, Abschnitt Google Kalender.", true, "Erneut verbinden");
+    else calState("Termine konnten nicht geladen werden: " + e.message, true, "Erneut versuchen");
+  }
+}
+$("calRefresh").onclick = loadCalendar;
+$("calConnect").onclick = async () => {
+  if ($("calConnect").textContent === "Erneut verbinden") forgetGoogleToken();
+  if (cachedGoogleToken(CALENDAR_SCOPE)) return loadCalendar();
+  calState("Bestätige den Zugriff im Google-Fenster …", false);
+  try { await connectGoogle(); loadCalendar(); loadGmail(); }
+  catch (e) {
+    console.error(e);
+    calState(e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request" ? "Abgebrochen." : "Verbinden fehlgeschlagen: " + (e.message || e.code), true);
+  }
+};
+$("calAuto").addEventListener("change", e => {
+  meta.calAuto = e.target.checked; queueSave("meta");
+  if (meta.calAuto) loadCalendar();
+});
+function importCalendar(ids) {
+  if (!calEvents || !calEvents.length) return;
+  snapshotForUndo();
+  const n = applyCalendar(calEvents, ids);
+  renderDay(); renderEvents(); queueSave("day");
+  calToast(n, false);
+}
+$("calImport").onclick = () => importCalendar(new Set(calEvents.map(e => e.id)));
+$("events").addEventListener("click", e => {
+  const b = e.target.closest("[data-cal]"); if (!b) return;
+  importCalendar(new Set([b.closest(".event").dataset.id]));
+});
+
 /* ================= Bereiche auf-/zuklappen ================= */
 // Zustand pro Bereich nur in diesem Browser (Komfort, keine Planer-Daten)
 document.querySelectorAll("details[data-fold]").forEach(d => {
@@ -1213,6 +1477,8 @@ async function loadMeta() {
   const [v, s, g] = await Promise.all([store.get("meta", "vocab"), store.get("meta", "settings"), store.get("meta", "goals")]);
   meta.vocab = v || {}; meta.templates = (s && s.templates) || {}; meta.habitNames = (s && s.habitNames) || [];
   meta.range = s && s.range && s.range.end > s.range.start ? s.range : null;
+  meta.calAuto = !(s && s.calAuto === false);
+  meta.areaMap = s && s.areaMap && typeof s.areaMap === "object" ? s.areaMap : {};
   meta.columns = (s && Array.isArray(s.columns) ? s.columns : []).filter(c => c && c.id && c.name).map(c => ({ id: String(c.id), name: String(c.name), open: c.open !== false }));
   buildColumns();
   goals.load(g);

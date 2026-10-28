@@ -45,6 +45,21 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - „+ To-do“ übernimmt den Betreff in die To-dos, „+ Zeitplan“ setzt ihn in den nächsten freien Zeitblock (ab jetzt oder ab der markierten Zeile)
 - Nur Lesezugriff. Mails werden nicht gespeichert – nur was du selbst übernimmst. Die Verbindung gilt jeweils ca. 1 Stunde, danach „Neu verbinden“.
 
+**Google Kalender** (nach Google-Anmeldung)
+- „Kalender verbinden“ holt die Termine des Tages aus allen Kalendern, die in Google Kalender sichtbar sind.
+- Termine werden automatisch als Blöcke in „Geplant“ eingetragen (📅 vor dem Titel), auf 15 Minuten gerundet. Ganztägige Termine landen unter „Termine & Notizen“. Abgelehnte Termine werden übersprungen.
+- Es wird nie überschrieben: belegte Zeilen und Pausen bleiben, „Gemacht“ wird nicht angefasst. Einen eingetragenen Block kannst du löschen, er kommt nicht wieder.
+- Wird ein Termin verschoben oder abgesagt, wandert bzw. verschwindet sein Block beim nächsten Abgleich – solange du ihn nicht geändert hast.
+- Automatisch nur für heute und kommende Tage (abschaltbar); für vergangene Tage „Alle eintragen“ oder „+ Zeitplan“ pro Termin.
+- Nur Lesezugriff, im Kalender wird nichts geändert. Eine Verbindung gilt für Gmail und Kalender zusammen, jeweils ca. 1 Stunde; danach „Neu verbinden“.
+
+**Lebensbereiche**
+- Jeder Zeitblock und jedes To-do gehört zu einem von fünf Bereichen: Körper & Gesundheit, Arbeit & Leistung, Soziales Netzwerk, Materielle Sicherheit, Werte & Sinn.
+- Die App erkennt den Bereich anhand von Stichwörtern („Sport“ → Körper, „Rechnungen“ → Materielles, „Mama anrufen“ → Soziales). Gestrichelt = automatisch erkannt.
+- Ein Tipp auf den Bereich ändert die Zuordnung; sie gilt für diesen Eintrag an allen Tagen („Cocktail: Video“ zählt wie „Cocktail“).
+- Tag: Zeit (gemacht/geplant) und To-dos pro Bereich, farbiger Streifen im Zeitplan, Hinweis auf Bereiche ohne Zeit.
+- Woche: Stunden pro Bereich und Tag mit Anteil, dazu das Lebensrad: Zufriedenheit 1–10 pro Bereich im Vergleich zum Anteil der Zeit.
+
 **To do's aus Asana**
 - Eigene Rubrik mit allen offenen Aufgaben aus *Meine Aufgaben* in Asana, gruppiert nach deinen Asana-Bereichen (z. B. „today“, „Später“), mit Fälligkeit und Projekt
 - Filter: Alle, Heute (Bereich „today“ oder fällig), Fällig
@@ -95,6 +110,16 @@ Firebase legt im Hintergrund ein Google-Cloud-Projekt mit demselben Namen an. Do
 
 Solange die App im Status „Test“ ist, können nur die eingetragenen Testnutzer Gmail verbinden – genau richtig für den persönlichen Gebrauch.
 
+## Google Kalender einrichten (einmalig, nach der Google-Anmeldung)
+
+Im selben Google-Cloud-Projekt wie bei Gmail:
+
+1. <https://console.cloud.google.com/apis/library/calendar-json.googleapis.com> öffnen, oben dein Firebase-Projekt (`tagejournal`) wählen → **Aktivieren**.
+2. **APIs & Dienste → OAuth-Zustimmungsbildschirm** („Google Auth Platform“) → **Datenzugriff → Bereiche hinzufügen:** `https://www.googleapis.com/auth/calendar.readonly` → Aktualisieren → Speichern. Deine Adresse muss unter **Zielgruppe → Testnutzer** stehen (wie bei Gmail).
+3. In der App unter „Termine & Notizen“ → **Google Kalender** → **„Kalender verbinden“**. Im Google-Fenster bei „nicht überprüft“ → **Weiter**, dann **beide Häkchen** (Gmail und Kalender) setzen → Weiter.
+
+Kommt „Google erlaubt den Zugriff noch nicht“, fehlt meist Schritt 1 (die API braucht nach dem Aktivieren ein paar Minuten) oder beim Verbinden wurde das Kalender-Häkchen nicht gesetzt – dann „Erneut verbinden“.
+
 ## Asana verbinden (einmalig, 1 Minute)
 
 1. <https://app.asana.com/0/my-apps> öffnen → **Neuer Zugriffstoken** (Personal access token) → Name z. B. „Tagesplaner“ → Schlüssel kopieren.
@@ -125,6 +150,7 @@ Für die Google-Anmeldung lokal zusätzlich `localhost` als autorisierte Domain 
 - `js/goals.js` – Ziele mit Etappen und Fristen
 - `js/gmail.js` – Gmail lesen (Liste, Betreff, Absender)
 - `js/asana.js` – Asana: eigene Aufgaben lesen und abhaken
+- `js/gcal.js` – Google Kalender lesen (Termine eines Tages)
 - `js/store.js` – Speicher (Firestore oder localStorage)
 - `js/firebase-config.js` – deine Firebase-Konfiguration
 - `firestore.rules` – Zugriffsregeln für die Datenbank

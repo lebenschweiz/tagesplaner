@@ -84,6 +84,8 @@
       </details>
     </div>
 
+    <figure class="quote" id="quote" aria-label="Satz des Tages"></figure>
+
     <nav class="zonenav" aria-label="Bereiche der Tagesseite">
       <a href="#zoneAm" class="z-am"><i></i>Ausrichten</a>
       <span class="sep"></span>
@@ -240,6 +242,23 @@
             <summary><span class="label">Termine &amp; Notizen</span></summary>
             <div class="fold-body notes">
               <textarea id="appts" data-k="appts" rows="3" aria-label="Termine und Notizen" placeholder="z. B. 10:00 Zahnarzt · Paket abholen"></textarea>
+              <details class="gmail gcal" id="calBox">
+                <summary><span class="label">Google Kalender</span><span class="sub" id="calCount"></span></summary>
+                <div class="gmail-body">
+                  <div class="gmail-bar">
+                    <label class="habit"><input type="checkbox" class="check" id="calAuto"> Termine automatisch in „Geplant“ eintragen</label>
+                    <div class="row-btns">
+                      <button class="btn small" id="calImport" hidden>Alle eintragen</button>
+                      <button class="btn small" id="calRefresh" hidden>Aktualisieren</button>
+                    </div>
+                  </div>
+                  <div id="calState" class="gmail-state">
+                    <p class="sub" id="calMsg">Verbinde deinen Google Kalender: Die Termine des Tages erscheinen hier und werden als Blöcke in „Geplant“ eingetragen. Nur Lesen – in deinem Kalender wird nichts geändert.</p>
+                    <button class="btn primary" id="calConnect">Kalender verbinden</button>
+                  </div>
+                  <ul class="mails events" id="events"></ul>
+                </div>
+              </details>
               <details class="gmail" id="gmailBox">
                 <summary><span class="label">Gmail</span><span class="sub" id="gmailCount"></span></summary>
                 <div class="gmail-body">
@@ -260,6 +279,19 @@
           <details class="fold card" data-fold="habitsToday" open>
             <summary><span class="label">Gewohnheiten heute</span></summary>
             <div class="fold-body"><div id="habitsToday" class="habits-today"></div></div>
+          </details>
+
+          <details class="fold card" data-fold="areas" open id="areasBox">
+            <summary><span class="label">Lebensbereiche</span><span class="sub" id="areasSum"></span></summary>
+            <div class="fold-body areas">
+              <ul class="area-bars" id="areaBars" aria-label="Zeit pro Lebensbereich heute"></ul>
+              <p class="sub area-tip" id="areaTip"></p>
+              <div class="area-assign">
+                <div class="label small-label">Einträge zuordnen</div>
+                <p class="sub">Tippe auf den Bereich, um ihn zu ändern. Gilt für alle Tage. <span class="guess-key">gestrichelt</span> = automatisch erkannt.</p>
+                <ul id="areaEntries" class="area-entries"></ul>
+              </div>
+            </div>
           </details>
 
           <details class="fold card" data-fold="load">
@@ -311,7 +343,6 @@
             <summary><span class="label">Gedanken, Ideen &amp; Erfolge</span></summary>
             <div class="fold-body notes"><textarea id="ideas" data-k="ideas" rows="4" aria-label="Gedanken, Ideen und Erfolge" placeholder="Was lief gut? Was habe ich gelernt?"></textarea></div>
           </details>
-          <div class="quote" id="quote"></div>
           <details class="fold card" data-fold="relax">
             <summary><span class="label">To-relax-Liste</span></summary>
             <div class="fold-body todo"><div id="relax"></div></div>
@@ -401,6 +432,23 @@
     </section>
 
     <section class="sheet">
+      <details class="fold" data-fold="weekAreas" open>
+      <summary><span class="label">Lebensbereiche der Woche</span><span class="sub" id="weekAreasSum"></span></summary>
+      <div class="fold-body">
+        <div class="scroll-x"><table class="overview area-week" id="areaWeek"></table></div>
+        <div class="wheel-wrap">
+          <div class="wheel" id="wheel" aria-hidden="true"></div>
+          <div class="notes">
+            <div class="label small-label">Lebensrad – wie zufrieden bin ich diese Woche?</div>
+            <p class="sub">1 = gar nicht, 10 = rundum. Die farbige Fläche zeigt deine Bewertung, die gestrichelte Linie den Anteil deiner Zeit.</p>
+            <div id="areaRatings" class="area-ratings"></div>
+          </div>
+        </div>
+      </div>
+      </details>
+    </section>
+
+    <section class="sheet">
       <details class="fold" data-fold="weekReflection" open>
       <summary><span class="label spaced">Selbst-Reflexion</span></summary>
       <div class="fold-body">
@@ -471,6 +519,7 @@
 <datalist id="ac-slot"></datalist>
 <datalist id="ac-todo"></datalist>
 <datalist id="ac-text"></datalist>
+<div class="area-pick" id="areaPick" role="menu" hidden></div>
 <datalist id="ac-habit"></datalist>
 <datalist id="ac-meal"></datalist>
 <datalist id="ac-fit"></datalist>
