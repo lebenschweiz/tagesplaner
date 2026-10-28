@@ -961,20 +961,24 @@ $("habitsFromLast").onclick = async () => {
 
 /* ================= Navigation ================= */
 function setView(v) {
-  if (!["day", "week", "goals"].includes(v)) v = "day";
+  if (!["day", "week", "goals", "todos"].includes(v)) v = "day";
   view = v;
-  $("dayView").hidden = v !== "day"; $("weekView").hidden = v !== "week"; $("goalsView").hidden = v !== "goals";
+  $("dayView").hidden = v !== "day"; $("weekView").hidden = v !== "week"; $("goalsView").hidden = v !== "goals"; $("todosView").hidden = v !== "todos";
   $("tabDay").setAttribute("aria-selected", String(v === "day"));
   $("tabWeek").setAttribute("aria-selected", String(v === "week"));
   $("tabGoals").setAttribute("aria-selected", String(v === "goals"));
+  $("tabTodos").setAttribute("aria-selected", String(v === "todos"));
+  document.body.classList.toggle("wide", v === "todos");
   clearSel();
   if (v === "week") renderWeek();
   if (v === "goals") goals.render();
+  if (v === "todos") { renderAsana(); asanaMaybeRefresh(); }
   try { localStorage.setItem("tagesplaner:view", v); } catch {}
 }
 $("tabDay").onclick = () => setView("day");
 $("tabWeek").onclick = () => setView("week");
 $("tabGoals").onclick = () => setView("goals");
+$("tabTodos").onclick = () => setView("todos");
 $("prev").onclick = () => loadDate(addDays(current, view === "week" ? -7 : -1));
 $("next").onclick = () => loadDate(addDays(current, view === "week" ? 7 : 1));
 $("today").onclick = () => loadDate(todayIso());
@@ -1009,7 +1013,7 @@ async function loadDate(date, silent) {
   if (!w && meta.habitNames && meta.habitNames.some(Boolean)) week.habits.forEach((h, i) => { h.name = meta.habitNames[i] || ""; });
   $("datePick").value = date;
   renderAll();
-  if (asanaTasks.length) renderAsana();
+  if (asanaData.tasks.length && view === "todos") renderAsana();
   if (!silent) setStatus(d ? "Geladen" : "Neuer Tag");
   loadCalendar();
 }
@@ -1150,13 +1154,13 @@ $("mails").addEventListener("click", e => {
 });
 
 /* ================= To do's aus Asana ================= */
+// Eigene Ansicht wie „Meine Aufgaben“ in Asana: Board (Spalten = Asana-Bereiche) oder Liste.
 // Zugangsschlüssel: in diesem Browser (localStorage) und auf Wunsch in users/{uid}/secrets/asana.
 // "secrets" gehört nicht zu den exportierten Datenarten, landet also nie in der JSON-Datei.
-let asanaToken = "", asanaFilter = "all", asanaTasks = [], asanaLoading = false, asanaLoadedAt = 0;
-const asanaDone = new Set();
-try { asanaFilter = localStorage.getItem("tagesplaner:asanaFilter") || "all"; } catch {}
-if (!asana.FILTERS[asanaFilter]) asanaFilter = "all";
-$("asanaFilters").innerHTML = Object.entries(asana.FILTERS).map(([k, f]) => `<button type="button" data-af="${k}" aria-pressed="false">${f.label}</button>`).join("");
+let asanaToken = "", asanaMode = "board", asanaData = { sections: [], tasks: [] }, asanaLoading = false, asanaLoadedAt = 0;
+const asanaDone = new Set(), asanaCollapsed = new Set();
+try { asanaMode = localStorage.getItem("tagesplaner:asanaMode") === "list" ? "list" : "board"; } catch {}
+try { JSON.parse(localStorage.getItem("tagesplaner:asanaCollapsed") || "[]").forEach(id => asanaCollapsed.add(id)); } catch {}
 
 async function initAsana() {
   asanaToken = asana.localToken();
@@ -1171,23 +1175,24 @@ function asanaState(msg, setup) {
   $("asanaState").hidden = !msg && !setup;
   $("asanaMsg").textContent = msg || "";
   $("asanaSetup").hidden = !setup;
-  $("asanaBar").hidden = !!setup;
-  $("asanaFoot").hidden = !!setup;
+  $("asanaTools").hidden = !!setup;
+  $("asanaModes").hidden = !!setup;
 }
-const ASANA_INTRO = "Verknüpfe dein Asana-Konto, dann erscheinen hier alle deine offenen Aufgaben aus „Meine Aufgaben“. Abhaken hier hakt sie auch in Asana ab.";
+const ASANA_INTRO = "Verknüpfe dein Asana-Konto, dann siehst du hier „Meine Aufgaben“ genau wie in Asana – als Board oder Liste. Abhaken und neue Aufgaben landen direkt in Asana.";
 async function loadAsana() {
   if (!asanaToken) {
-    asanaTasks = []; $("asanaList").replaceChildren(); $("asanaCount").textContent = "aus Asana";
+    asanaData = { sections: [], tasks: [] }; renderAsana();
     return asanaState(ASANA_INTRO, true);
   }
   if (asanaLoading) return;
   asanaLoading = true;
-  if (!asanaTasks.length) asanaState("Lädt deine Asana-Aufgaben …", false);
+  if (!asanaData.tasks.length) asanaState("Lädt deine Asana-Aufgaben …", false);
   $("asanaRefresh").disabled = true;
   try {
-    const r = await asana.listMyTasks(asanaToken);
-    asanaTasks = r.tasks; asanaLoadedAt = Date.now(); asanaDone.clear();
-    $("asanaInfo").textContent = `Verbunden${r.user ? " als " + r.user : ""} · Stand ${new Date().toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })}`;
+    const r = await asana.loadMyTasks(asanaToken);
+    asanaData = r; asanaLoadedAt = Date.now(); asanaDone.clear();
+    $("asanaInfo").textContent = `${r.user ? r.user + " · " : ""}Stand ${new Date().toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })}`;
+    asanaState("", false);
     renderAsana();
   } catch (e) {
     console.error(e);
@@ -1205,59 +1210,81 @@ function asanaTaken(name) {
   const inPlan = Object.values(day.slots || {}).some(s => (s.p || "").trim().toLowerCase() === n);
   return { todo: inTodos, slot: inPlan };
 }
-function renderAsana() {
-  $("asanaFilters").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.af === asanaFilter)));
+// Datum wie in Asana: „Heute“, „Morgen“, „7. März“, mit Jahr nur außerhalb des laufenden Jahres
+function asanaDue(d) {
   const today = todayIso();
-  const shown = asanaTasks.filter(t => asana.matches(t, asanaFilter, today));
-  const open = asanaTasks.filter(t => !asanaDone.has(t.id)).length;
-  $("asanaCount").textContent = `${open} offen`;
-  const fmtDue = d => {
-    if (d === today) return "heute";
-    if (d === addDays(today, 1)) return "morgen";
-    return parse(d).toLocaleDateString("de-CH", { day: "numeric", month: "short" });
-  };
-  const items = [];
-  let section = null;
-  shown.forEach(t => {
-    const sec = (t.workspace ? t.workspace + " · " : "") + t.section;
-    if (sec !== section) {
-      section = sec;
-      const h = document.createElement("li"); h.className = "asana-sec"; h.textContent = sec;
-      items.push(h);
-    }
-    const li = document.createElement("li");
-    const done = asanaDone.has(t.id), taken = asanaTaken(t.name);
-    li.className = "mail asana-task" + (done ? " done" : "");
-    li.dataset.id = t.id;
-    li.innerHTML = `<div class="asana-name"><input type="checkbox" class="check" data-at="done"${done ? " checked" : ""} aria-label="In Asana erledigt"><span></span></div>` +
-      `<div class="acts"><button class="btn${taken.todo ? " done" : ""}" data-at="todo">${taken.todo ? "✓ Aufgabe" : "+ Aufgabe"}</button>` +
-      `<button class="btn${taken.slot ? " done" : ""}" data-at="slot">${taken.slot ? "✓ Zeitplan" : "+ Zeitplan"}</button>` +
-      `<a class="btn" target="_blank" rel="noopener" data-at="open">Öffnen</a></div>` +
-      `<div class="snip"></div>`;
-    li.querySelector(".asana-name span").textContent = t.name;
-    li.querySelector("a").href = t.url;
-    const meta = [];
-    if (t.due) meta.push((t.due < today ? "überfällig · " : "fällig ") + fmtDue(t.due));
-    if (t.projects.length) meta.push(t.projects.join(", "));
-    const snip = li.querySelector(".snip");
-    snip.textContent = meta.join(" · ");
-    if (t.due && t.due <= today) snip.classList.add("late");
-    if (t.notes) li.title = t.notes.slice(0, 300);
-    items.push(li);
-  });
-  $("asanaList").replaceChildren(...items);
-  asanaState(shown.length ? "" : asanaFilter === "all" ? "Keine offenen Aufgaben in Asana. Schön!" : `Keine Aufgaben unter „${asana.FILTERS[asanaFilter].label}“.`, false);
+  if (d === today) return { text: "Heute", cls: "today" };
+  if (d === addDays(today, 1)) return { text: "Morgen", cls: "soon" };
+  if (d === addDays(today, -1)) return { text: "Gestern", cls: "late" };
+  const opts = { day: "numeric", month: "short" };
+  if (d.slice(0, 4) !== today.slice(0, 4)) opts.year = "numeric";
+  return { text: parse(d).toLocaleDateString("de-CH", opts), cls: d < today ? "late" : "" };
+}
+function asanaTags(t) {
+  return t.projects.map(p => {
+    const c = asana.COLORS[p.color];
+    return `<span class="as-tag${c ? "" : " plain"}"${c ? ` style="--c:${c}"` : ""}>${esc(p.name)}</span>`;
+  }).join("");
+}
+function asanaActs(t) {
+  const taken = asanaTaken(t.name);
+  return `<button type="button" class="as-act${taken.todo ? " done" : ""}" data-at="todo" title="In die Aufgaben dieses Tages übernehmen">${taken.todo ? "✓" : "+"} Tag</button>` +
+    `<button type="button" class="as-act${taken.slot ? " done" : ""}" data-at="slot" title="In den nächsten freien Zeitblock">${taken.slot ? "✓" : "+"} Zeitplan</button>` +
+    `<a class="as-act" data-at="open" target="_blank" rel="noopener" href="${esc(t.url)}" title="In Asana öffnen">Öffnen ↗</a>`;
+}
+const asanaCheck = t => `<button type="button" class="as-check" data-at="done" role="checkbox" aria-checked="${asanaDone.has(t.id)}" aria-label="Als erledigt markieren"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 8.3l2.3 2.3 4.7-4.9"/></svg></button>`;
+function asanaCard(t) {
+  const due = t.due ? asanaDue(t.due) : null;
+  return `<article class="as-card${asanaDone.has(t.id) ? " done" : ""}" data-id="${esc(t.id)}"${t.notes ? ` title="${esc(t.notes.slice(0, 300))}"` : ""}>` +
+    `<div class="as-card-top">${asanaCheck(t)}<span class="as-name">${esc(t.name)}</span></div>` +
+    (t.projects.length ? `<div class="as-tags">${asanaTags(t)}</div>` : "") +
+    (due ? `<div class="as-due ${due.cls}">${due.text}</div>` : "") +
+    `<div class="as-acts">${asanaActs(t)}</div></article>`;
+}
+function asanaRow(t) {
+  const due = t.due ? asanaDue(t.due) : null;
+  return `<div class="as-row${asanaDone.has(t.id) ? " done" : ""}" data-id="${esc(t.id)}" role="row">` +
+    `<div class="as-cell as-c-name">${asanaCheck(t)}<span class="as-name">${esc(t.name)}</span><span class="as-acts">${asanaActs(t)}</span></div>` +
+    `<div class="as-cell as-c-due">${due ? `<span class="as-due ${due.cls}">${due.text}</span>` : ""}</div>` +
+    `<div class="as-cell as-c-proj">${asanaTags(t)}</div></div>`;
+}
+const asanaAdd = sid => `<form class="as-add" data-section="${esc(sid)}"><button type="button" class="as-add-btn" data-at="add">+ Aufgabe hinzufügen</button>` +
+  `<input type="text" class="as-add-input" placeholder="Name der Aufgabe – Enter" aria-label="Neue Aufgabe" hidden></form>`;
+function renderAsana() {
+  $("asanaModes").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.am === asanaMode)));
+  const { sections, tasks } = asanaData;
+  const bySec = new Map(sections.map(s => [s.id, []]));
+  tasks.forEach(t => { if (!bySec.has(t.section)) bySec.set(t.section, []); bySec.get(t.section).push(t); });
+  const secs = [...sections];
+  if (bySec.has("") && bySec.get("").length) secs.push({ id: "", name: "Ohne Bereich" });
+  const count = id => bySec.get(id).filter(t => !asanaDone.has(t.id)).length;
+  const show = !!asanaToken && (sections.length || tasks.length);
+  $("asanaBoard").hidden = !show || asanaMode !== "board";
+  $("asanaListView").hidden = !show || asanaMode !== "list";
+  if (!show) { $("asanaBoard").innerHTML = ""; $("asanaListView").innerHTML = ""; return; }
+  if (asanaMode === "board") {
+    $("asanaBoard").innerHTML = secs.map(s =>
+      `<section class="as-col" data-section="${esc(s.id)}"><header class="as-col-h"><span class="as-col-name">${esc(s.name)}</span><span class="as-col-n">${count(s.id)}</span></header>` +
+      `<div class="as-cards">${bySec.get(s.id).map(asanaCard).join("")}</div>${s.id ? asanaAdd(s.id) : ""}</section>`).join("");
+  } else {
+    $("asanaListView").innerHTML = `<div class="as-row as-row-h" role="row"><div class="as-cell as-c-name">Name</div><div class="as-cell as-c-due">Fälligkeitsdatum</div><div class="as-cell as-c-proj">Projekte</div></div>` +
+      secs.map(s => {
+        const closed = asanaCollapsed.has(s.id);
+        return `<section class="as-group${closed ? " closed" : ""}" data-section="${esc(s.id)}"><button type="button" class="as-group-h" data-at="toggle" aria-expanded="${!closed}"><span class="as-caret">▾</span>${esc(s.name)}<span class="as-col-n">${count(s.id)}</span></button>` +
+          (closed ? "" : bySec.get(s.id).map(asanaRow).join("") + (s.id ? asanaAdd(s.id) : "")) + `</section>`;
+      }).join("");
+  }
 }
 async function forgetAsana() {
-  asanaToken = ""; asanaTasks = [];
+  asanaToken = ""; asanaData = { sections: [], tasks: [] };
   asana.saveLocalToken("");
   if (store.mode === "cloud") { try { await store.set("secrets", "asana", { token: "" }); } catch (e) { console.error(e); } }
 }
 
-$("asanaFilters").addEventListener("click", e => {
-  const b = e.target.closest("[data-af]"); if (!b) return;
-  asanaFilter = b.dataset.af;
-  try { localStorage.setItem("tagesplaner:asanaFilter", asanaFilter); } catch {}
+$("asanaModes").addEventListener("click", e => {
+  const b = e.target.closest("[data-am]"); if (!b) return;
+  asanaMode = b.dataset.am;
+  try { localStorage.setItem("tagesplaner:asanaMode", asanaMode); } catch {}
   renderAsana();
 });
 $("asanaRefresh").onclick = loadAsana;
@@ -1266,10 +1293,9 @@ $("asanaConnect").onclick = async () => {
   const t = $("asanaToken").value.trim();
   if (!t) return $("asanaToken").focus();
   asanaState("Verbinde mit Asana …", false);
-  $("asanaSetup").hidden = true;
-  try {
-    await asana.listMyTasks(t).then(r => { asanaTasks = r.tasks; });
-  } catch (e) {
+  $("asanaTools").hidden = true;
+  try { await asana.loadMyTasks(t); }
+  catch (e) {
     return asanaState(e.code === "unauthorized" ? "Dieser Zugangsschlüssel funktioniert nicht. Bitte prüfen und neu einfügen." : "Verbinden fehlgeschlagen: " + e.message, true);
   }
   asanaToken = t; $("asanaToken").value = "";
@@ -1278,39 +1304,79 @@ $("asanaConnect").onclick = async () => {
     try { await store.set("secrets", "asana", { token: t, savedAt: new Date().toISOString() }); }
     catch (e) { console.error(e); toast("Nur auf diesem Gerät gespeichert – die Cloud war nicht erreichbar.", false); }
   }
-  asanaTasks = []; loadAsana();
+  asanaData = { sections: [], tasks: [] }; loadAsana();
 };
 $("asanaDisconnect").onclick = async () => {
   await forgetAsana();
   loadAsana();
   toast("Asana getrennt. Den Schlüssel kannst du in Asana unter „Meine Apps“ auch ganz widerrufen.", false);
 };
-$("asanaList").addEventListener("click", async e => {
+function asanaCounts() {
+  document.querySelectorAll("#todosView [data-section]").forEach(el => {
+    const n = el.querySelector(".as-col-n"); if (!n) return;
+    n.textContent = asanaData.tasks.filter(t => t.section === el.dataset.section && !asanaDone.has(t.id)).length;
+  });
+}
+async function asanaToggleDone(t, el) {
+  const completed = !asanaDone.has(t.id);
+  const mark = on => {
+    on ? asanaDone.add(t.id) : asanaDone.delete(t.id);
+    document.querySelectorAll(`#todosView [data-id="${CSS.escape(t.id)}"]`).forEach(x => {
+      x.classList.toggle("done", on); x.querySelector(".as-check")?.setAttribute("aria-checked", String(on));
+    });
+    asanaCounts();
+  };
+  mark(completed);
+  try { await asana.setCompleted(asanaToken, t.id, completed); toast(completed ? "In Asana erledigt" : "In Asana wieder offen", false); }
+  catch (err) { mark(!completed); toast("Asana hat nicht geantwortet: " + err.message, false); }
+}
+$("todosView").addEventListener("click", async e => {
   const el = e.target.closest("[data-at]"); if (!el) return;
-  const li = el.closest(".asana-task"), t = asanaTasks.find(x => x.id === li?.dataset.id);
-  if (!t) return;
   const kind = el.dataset.at;
-  if (kind === "open") return;
-  if (kind === "done") {
-    const completed = el.checked;
-    completed ? asanaDone.add(t.id) : asanaDone.delete(t.id);
-    li.classList.toggle("done", completed);
-    $("asanaCount").textContent = `${asanaTasks.filter(x => !asanaDone.has(x.id)).length} offen`;
-    try { await asana.setCompleted(asanaToken, t.id, completed); toast(completed ? "In Asana erledigt" : "In Asana wieder offen", false); }
-    catch (err) {
-      el.checked = !completed; li.classList.toggle("done", !completed);
-      completed ? asanaDone.delete(t.id) : asanaDone.add(t.id);
-      $("asanaCount").textContent = `${asanaTasks.filter(x => !asanaDone.has(x.id)).length} offen`;
-      toast("Asana hat nicht geantwortet: " + err.message, false);
-    }
+  if (kind === "toggle") {
+    const id = el.closest(".as-group").dataset.section;
+    asanaCollapsed.has(id) ? asanaCollapsed.delete(id) : asanaCollapsed.add(id);
+    try { localStorage.setItem("tagesplaner:asanaCollapsed", JSON.stringify([...asanaCollapsed])); } catch {}
+    return renderAsana();
+  }
+  if (kind === "add") {
+    const f = el.closest(".as-add"); el.hidden = true;
+    const inp = f.querySelector("input"); inp.hidden = false; inp.focus();
     return;
   }
+  const holder = el.closest("[data-id]"), t = asanaData.tasks.find(x => x.id === holder?.dataset.id);
+  if (!t || kind === "open") return;
+  if (kind === "done") return asanaToggleDone(t, el);
   if (el.classList.contains("done")) return;
   if (kind === "todo" ? takeAsTodo(t.name) : takeIntoPlan(t.name)) renderAsana();
 });
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && store && asanaToken && Date.now() - asanaLoadedAt > 5 * 60 * 1000) loadAsana();
+$("todosView").addEventListener("submit", async e => {
+  const f = e.target.closest(".as-add"); if (!f) return;
+  e.preventDefault();
+  const inp = f.querySelector("input"), name = inp.value.trim();
+  const section = asanaData.sections.find(s => s.id === f.dataset.section);
+  if (!name || !section) return;
+  inp.disabled = true;
+  try {
+    const t = await asana.createTask(asanaToken, section, name);
+    asanaData.tasks.push({ id: t.gid, name, due: t.due_on || "", section: section.id, notes: "",
+      projects: (t.projects || []).map(p => ({ name: (p.name || "").trim(), color: p.color || "none" })).filter(p => p.name),
+      url: t.permalink_url || `https://app.asana.com/0/0/${t.gid}` });
+    renderAsana();
+    // Gleich die nächste Aufgabe eintippen können
+    const again = document.querySelector(`#todosView .as-add[data-section="${CSS.escape(section.id)}"]`);
+    if (again) { again.querySelector("button").hidden = true; const i = again.querySelector("input"); i.hidden = false; i.focus(); }
+  } catch (err) { inp.disabled = false; toast("Anlegen in Asana fehlgeschlagen: " + err.message, false); }
 });
+$("todosView").addEventListener("focusout", e => {
+  const inp = e.target.closest(".as-add-input"); if (!inp || inp.value.trim() || inp.disabled) return;
+  inp.hidden = true; inp.closest(".as-add").querySelector("button").hidden = false;
+});
+$("todosView").addEventListener("keydown", e => {
+  if (e.key === "Escape" && e.target.closest(".as-add-input")) { e.target.value = ""; e.target.blur(); }
+});
+function asanaMaybeRefresh() { if (store && asanaToken && Date.now() - asanaLoadedAt > 5 * 60 * 1000) loadAsana(); }
+document.addEventListener("visibilitychange", () => { if (!document.hidden && view === "todos") asanaMaybeRefresh(); });
 
 /* ================= Google Kalender ================= */
 // Termine des Tages als Blöcke in „Geplant“. day.cal merkt sich pro Termin, welche Zeilen er belegt hat:

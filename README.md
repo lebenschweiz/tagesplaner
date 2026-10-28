@@ -60,12 +60,12 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - Tag: Zeit (gemacht/geplant) und To-dos pro Bereich, farbiger Streifen im Zeitplan, Hinweis auf Bereiche ohne Zeit.
 - Woche: Stunden pro Bereich und Tag mit Anteil, dazu das Lebensrad: Zufriedenheit 1–10 pro Bereich im Vergleich zum Anteil der Zeit.
 
-**To do's aus Asana**
-- Eigene Rubrik mit allen offenen Aufgaben aus *Meine Aufgaben* in Asana, gruppiert nach deinen Asana-Bereichen (z. B. „today“, „Später“), mit Fälligkeit und Projekt
-- Filter: Alle, Heute (Bereich „today“ oder fällig), Fällig
-- Abhaken hakt die Aufgabe auch in Asana ab (nochmal tippen macht sie wieder offen)
-- „+ Aufgabe“ übernimmt sie in die Aufgaben des Tages, „+ Zeitplan“ in den nächsten freien Zeitblock
-- Lädt beim Öffnen und wenn du nach mehr als 5 Minuten zur App zurückkehrst neu
+**To do's (Asana)** – eigener Reiter oben neben „Ziele“
+- Zeigt „Meine Aufgaben“ aus Asana wie in Asana: **Board** mit einer Spalte pro Asana-Bereich (auch leere, in Asana-Reihenfolge, mit Anzahl) oder **Liste** mit aufklappbaren Bereichen und den Spalten Fälligkeitsdatum und Projekte
+- Karten mit Projekt-Etiketten in den Asana-Farben und Fälligkeit (überfällig rot, heute/morgen grün)
+- Abhaken hakt die Aufgabe in Asana ab (nochmal tippen macht sie wieder offen); „+ Aufgabe hinzufügen“ legt sie direkt im jeweiligen Asana-Bereich an
+- „+ Tag“ übernimmt eine Aufgabe in die Aufgaben des gewählten Tages, „+ Zeitplan“ in den nächsten freien Zeitblock
+- Lädt beim Start und wenn du nach mehr als 5 Minuten zurückkehrst neu; Liste oder Board merkt sich die App
 
 **Woche**
 - Gewohnheits-Tracker (6 Gewohnheiten × 7 Tage), Namen werden in die nächste Woche übernommen
@@ -123,14 +123,14 @@ Kommt „Google erlaubt den Zugriff noch nicht“, fehlt meist Schritt 1 (die AP
 ## Asana verbinden (einmalig, 1 Minute)
 
 1. <https://app.asana.com/0/my-apps> öffnen → **Neuer Zugriffstoken** (Personal access token) → Name z. B. „Tagesplaner“ → Schlüssel kopieren.
-2. In der App in der Rubrik **To do's** einfügen → **Asana verbinden**.
+2. In der App im Reiter **To do's** einfügen → **Asana verbinden**.
 
 Wo der Schlüssel liegt:
 - Immer in diesem Browser (localStorage), damit die Liste sofort lädt.
 - Mit Google-Anmeldung und Häkchen „Auf allen meinen Geräten verwenden“ zusätzlich in deinem Konto unter `users/<deine-id>/secrets/asana`. Die Firestore-Regeln erlauben nur dir selbst den Zugriff; der Bereich `secrets` wird beim Daten-Export nicht mitgenommen.
 - Der Schlüssel geht nur direkt an `app.asana.com`, an keinen anderen Server.
 
-„Trennen“ löscht ihn auf dem Gerät und im Konto. Ganz ungültig machst du ihn in Asana unter „Meine Apps“ → Token widerrufen. Ein Asana-Zugriffstoken hat dieselben Rechte wie du in Asana; die App nutzt davon nur Lesen und Abhaken eigener Aufgaben.
+„Trennen“ löscht ihn auf dem Gerät und im Konto. Ganz ungültig machst du ihn in Asana unter „Meine Apps“ → Token widerrufen. Ein Asana-Zugriffstoken hat dieselben Rechte wie du in Asana; die App nutzt davon nur Lesen, Abhaken und Anlegen eigener Aufgaben.
 
 ## Lokal ausprobieren
 
@@ -149,7 +149,7 @@ Für die Google-Anmeldung lokal zusätzlich `localhost` als autorisierte Domain 
 - `js/autocomplete.js` – Excel-artige Vorschläge
 - `js/goals.js` – Ziele mit Etappen und Fristen
 - `js/gmail.js` – Gmail lesen (Liste, Betreff, Absender)
-- `js/asana.js` – Asana: eigene Aufgaben lesen und abhaken
+- `js/asana.js` – Asana: Meine Aufgaben mit Bereichen lesen, abhaken, neue Aufgaben anlegen
 - `js/gcal.js` – Google Kalender lesen (Termine eines Tages)
 - `js/store.js` – Speicher (Firestore oder localStorage)
 - `js/firebase-config.js` – deine Firebase-Konfiguration
