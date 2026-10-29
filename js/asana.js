@@ -84,3 +84,11 @@ export async function createTask(token, section, name) {
   });
   return data;
 }
+
+/** Aufgabe in einen Bereich von „Meine Aufgaben“ verschieben, vor bzw. hinter eine andere Aufgabe. */
+export function moveTask(token, sectionId, id, { before, after } = {}) {
+  const data = { task: id };
+  if (before) data.insert_before = before;
+  else if (after) data.insert_after = after;
+  return call(token, `/sections/${sectionId}/addTask`, { method: "POST", body: JSON.stringify({ data }) });
+}
