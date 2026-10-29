@@ -64,6 +64,7 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - Zeigt „Meine Aufgaben“ aus Asana wie in Asana: **Board** mit einer Spalte pro Asana-Bereich (auch leere, in Asana-Reihenfolge, mit Anzahl) oder **Liste** mit aufklappbaren Bereichen und den Spalten Fälligkeitsdatum und Projekte
 - Karten mit Projekt-Etiketten in den Asana-Farben und Fälligkeit (überfällig rot, heute/morgen grün)
 - Abhaken hakt die Aufgabe in Asana ab (nochmal tippen macht sie wieder offen); „+ Aufgabe hinzufügen“ legt sie direkt im jeweiligen Asana-Bereich an
+- Verschieben wie in Asana: Karte (bzw. Zeile in der Liste) in einen anderen Bereich oder an eine andere Stelle ziehen – wird in Asana gespeichert. Auf dem Handy kurz gedrückt halten, dann ziehen.
 - „+ Tag“ übernimmt eine Aufgabe in die Aufgaben des gewählten Tages, „+ Zeitplan“ in den nächsten freien Zeitblock
 - Lädt beim Start und wenn du nach mehr als 5 Minuten zurückkehrst neu; Liste oder Board merkt sich die App
 
@@ -130,7 +131,7 @@ Wo der Schlüssel liegt:
 - Mit Google-Anmeldung und Häkchen „Auf allen meinen Geräten verwenden“ zusätzlich in deinem Konto unter `users/<deine-id>/secrets/asana`. Die Firestore-Regeln erlauben nur dir selbst den Zugriff; der Bereich `secrets` wird beim Daten-Export nicht mitgenommen.
 - Der Schlüssel geht nur direkt an `app.asana.com`, an keinen anderen Server.
 
-„Trennen“ löscht ihn auf dem Gerät und im Konto. Ganz ungültig machst du ihn in Asana unter „Meine Apps“ → Token widerrufen. Ein Asana-Zugriffstoken hat dieselben Rechte wie du in Asana; die App nutzt davon nur Lesen, Abhaken und Anlegen eigener Aufgaben.
+„Trennen“ löscht ihn auf dem Gerät und im Konto. Ganz ungültig machst du ihn in Asana unter „Meine Apps“ → Token widerrufen. Ein Asana-Zugriffstoken hat dieselben Rechte wie du in Asana; die App nutzt davon nur Lesen, Abhaken, Verschieben und Anlegen eigener Aufgaben.
 
 ## Lokal ausprobieren
 

@@ -1367,6 +1367,122 @@ $("todosView").addEventListener("focusout", e => {
 $("todosView").addEventListener("keydown", e => {
   if (e.key === "Escape" && e.target.closest(".as-add-input")) { e.target.value = ""; e.target.blur(); }
 });
+/* Verschieben wie in Asana: Karte bzw. Zeile ziehen – in einen anderen Bereich oder an eine andere Stelle.
+   Maus: einfach ziehen. Finger: kurz gedrückt halten, dann ziehen. */
+const AS_ITEM = ".as-card, .as-row[data-id]";
+let asDrag = null;
+function asDragStart() {
+  const d = asDrag; if (!d) return;
+  const r = d.item.getBoundingClientRect();
+  d.active = true;
+  d.dx = d.x - r.left; d.dy = d.y - r.top;
+  d.ghost = d.item.cloneNode(true);
+  d.ghost.classList.add("as-ghost");
+  d.ghost.style.width = r.width + "px";
+  document.body.appendChild(d.ghost);
+  d.ph = document.createElement("div");
+  d.ph.className = "as-ph";
+  d.ph.style.height = r.height + "px";
+  d.item.after(d.ph);
+  d.item.classList.add("as-dragging");
+  document.body.classList.add("as-drag-on");
+  if (d.touch) navigator.vibrate?.(15);
+  asDragMove(d.x, d.y);
+  d.raf = requestAnimationFrame(asAutoScroll);
+}
+function asDragMove(x, y) {
+  const d = asDrag; d.x = x; d.y = y;
+  d.ghost.style.left = x - d.dx + "px"; d.ghost.style.top = y - d.dy + "px";
+  const zone = document.elementFromPoint(x, y)?.closest("#todosView .as-col, #todosView .as-group");
+  if (!zone || !zone.dataset.section) return;
+  const box = zone.querySelector(".as-cards") || zone;
+  const items = [...box.children].filter(el => el.matches(AS_ITEM) && el !== d.item);
+  const next = items.find(el => { const r = el.getBoundingClientRect(); return y < r.top + r.height / 2; });
+  if (next) { if (d.ph.nextElementSibling !== next) next.before(d.ph); }
+  else {
+    const add = box === zone ? zone.querySelector(".as-add") : null;
+    if (add) { if (d.ph.nextElementSibling !== add) add.before(d.ph); }
+    else if (box.lastElementChild !== d.ph) box.appendChild(d.ph);
+  }
+}
+// Am Rand ziehen scrollt das Board, die Spalte oder die Seite mit
+function asAutoScroll() {
+  const d = asDrag; if (!d || !d.active) return;
+  const edge = 56, step = 14;
+  const board = $("asanaBoard");
+  if (!board.hidden) {
+    const r = board.getBoundingClientRect();
+    if (d.x < r.left + edge) board.scrollLeft -= step; else if (d.x > r.right - edge) board.scrollLeft += step;
+  }
+  const cards = document.elementFromPoint(d.x, d.y)?.closest(".as-cards");
+  if (cards) {
+    const r = cards.getBoundingClientRect();
+    if (d.y < r.top + edge) cards.scrollTop -= step; else if (d.y > r.bottom - edge) cards.scrollTop += step;
+  }
+  if (d.y < edge) window.scrollBy(0, -step); else if (d.y > innerHeight - edge) window.scrollBy(0, step);
+  asDragMove(d.x, d.y);
+  d.raf = requestAnimationFrame(asAutoScroll);
+}
+function asDragEnd(cancel) {
+  const d = asDrag; asDrag = null;
+  if (!d) return;
+  clearTimeout(d.timer);
+  if (!d.active) return;
+  cancelAnimationFrame(d.raf);
+  d.ghost.remove();
+  document.body.classList.remove("as-drag-on");
+  d.item.classList.remove("as-dragging");
+  const sibling = (el, dir) => { while ((el = el?.[dir]) && !(el.matches(AS_ITEM) && el !== d.item)); return el; };
+  const section = d.ph.closest("[data-section]")?.dataset.section;
+  const before = sibling(d.ph, "nextElementSibling")?.dataset.id, after = sibling(d.ph, "previousElementSibling")?.dataset.id;
+  d.ph.remove();
+  asDrag = { suppressClick: true }; setTimeout(() => { if (asDrag?.suppressClick) asDrag = null; }, 0);
+  const t = asanaData.tasks.find(x => x.id === d.id);
+  if (cancel || !t || !section) return;
+  const inSec = asanaData.tasks.filter(x => x.section === section && x.id !== t.id);
+  const oldIdx = asanaData.tasks.filter(x => x.section === t.section).indexOf(t);
+  const newIdx = before ? inSec.findIndex(x => x.id === before) : inSec.length;
+  if (section === t.section && newIdx === oldIdx) return;
+  asanaMove(t, section, before, after);
+}
+async function asanaMove(t, section, before, after) {
+  const prev = { tasks: [...asanaData.tasks], section: t.section };
+  // Lokal sofort umsortieren, dann in Asana speichern
+  asanaData.tasks.splice(asanaData.tasks.indexOf(t), 1);
+  t.section = section;
+  let i = before ? asanaData.tasks.findIndex(x => x.id === before) : -1;
+  if (i < 0 && after) { i = asanaData.tasks.findIndex(x => x.id === after); if (i >= 0) i++; }
+  if (i < 0) { const last = asanaData.tasks.map(x => x.section).lastIndexOf(section); i = last >= 0 ? last + 1 : asanaData.tasks.length; }
+  asanaData.tasks.splice(i, 0, t);
+  renderAsana();
+  try { await asana.moveTask(asanaToken, section, t.id, { before, after }); }
+  catch (err) {
+    asanaData.tasks = prev.tasks; t.section = prev.section; renderAsana();
+    toast("Verschieben in Asana fehlgeschlagen: " + err.message, false);
+  }
+}
+$("todosView").addEventListener("pointerdown", e => {
+  if (e.button !== 0 || asDrag) return;
+  const item = e.target.closest(AS_ITEM);
+  if (!item || e.target.closest("button, a, input, form")) return;
+  asDrag = { item, id: item.dataset.id, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, active: false, touch: e.pointerType !== "mouse" };
+  if (asDrag.touch) asDrag.timer = setTimeout(asDragStart, 300);
+});
+document.addEventListener("pointermove", e => {
+  const d = asDrag; if (!d || d.suppressClick) return;
+  if (d.active) { e.preventDefault(); return asDragMove(e.clientX, e.clientY); }
+  const moved = Math.hypot(e.clientX - d.sx, e.clientY - d.sy);
+  if (d.touch) { if (moved > 8) asDragEnd(true); }
+  else if (moved > 5) { d.x = e.clientX; d.y = e.clientY; asDragStart(); }
+});
+document.addEventListener("pointerup", () => { if (asDrag && !asDrag.suppressClick) asDragEnd(false); });
+document.addEventListener("pointercancel", () => { if (asDrag && !asDrag.suppressClick) asDragEnd(true); });
+// Auf dem Handy während des Ziehens nicht die Seite scrollen
+document.addEventListener("touchmove", e => { if (asDrag?.active) e.preventDefault(); }, { passive: false });
+document.addEventListener("contextmenu", e => { if (asDrag && e.target.closest?.(AS_ITEM)) e.preventDefault(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && asDrag?.active) asDragEnd(true); });
+$("todosView").addEventListener("click", e => { if (asDrag?.suppressClick) { e.stopPropagation(); e.preventDefault(); asDrag = null; } }, true);
+
 function asanaMaybeRefresh() { if (store && asanaToken && Date.now() - asanaLoadedAt > 5 * 60 * 1000) loadAsana(); }
 document.addEventListener("visibilitychange", () => { if (!document.hidden && view === "todos") asanaMaybeRefresh(); });
 
