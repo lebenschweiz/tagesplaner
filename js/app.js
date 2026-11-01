@@ -6,6 +6,7 @@ import { listEvents } from "./gcal.js";
 import { createAutocomplete } from "./autocomplete.js";
 import { createGoals } from "./goals.js";
 import { quoteFor } from "./quotes.js";
+import { createJournal } from "./journal.js";
 
 /* ================= Grundlagen ================= */
 const $ = id => document.getElementById(id);
@@ -91,6 +92,12 @@ let rendering = false;
 const timers = {};
 const dirty = new Set();
 const ac = createAutocomplete({ onChange: v => { meta.vocab = v; queueSave("meta"); } });
+const journal = createJournal({
+  getStore: () => store,
+  beforeLoad: () => flushAll(),
+  toast: (text, onUndo) => toast(text, onUndo || false),
+  openDay: date => { setView("day"); loadDate(date); }
+});
 const goals = createGoals({ onChange: () => queueSave("goals"), today: todayIso, onOpen: id => { setView("goals"); goals.reveal(id); setTimeout(() => document.querySelector(`#goalsView [data-gid="${id}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 30); } });
 
 /* ================= Speichern ================= */
@@ -125,19 +132,22 @@ const flushAll = () => Promise.all(["day", "week", "meta", "goals"].map(flush));
 window.addEventListener("pagehide", () => { if (dirty.size) flushAll(); });
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) flushAll();
-  else if (store && !dirty.size) loadDate(current, true);
+  else if (store && !dirty.size) { loadDate(current, true); if (view === "journal") journal.show(true); }
 });
 
 /* ================= Rückgängig ================= */
-let undoState = null, toastTimer = null;
+let undoState = null, toastTimer = null, toastUndoFn = null;
 function snapshotForUndo(label) { undoState = { day: clone(day), week: clone(week), goals: goals.data(), columns: clone(meta.columns), label }; }
+// undoable: true = Tag/Woche zurücksetzen, eine Funktion = eigenes Rückgängig (z. B. Gedanken-Journal)
 function toast(text, undoable = true) {
   $("toastText").textContent = text;
-  $("toastUndo").hidden = !undoable || !undoState;
+  toastUndoFn = typeof undoable === "function" ? undoable : null;
+  $("toastUndo").hidden = !toastUndoFn && (!undoable || !undoState);
   $("toast").hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { $("toast").hidden = true; }, 6000);
 }
 $("toastUndo").onclick = () => {
+  if (toastUndoFn) { const f = toastUndoFn; toastUndoFn = null; $("toast").hidden = true; f(); return; }
   if (!undoState) return;
   if (undoState.day.date === day.date) { day = undoState.day; queueSave("day"); }
   if (undoState.week.monday === week.monday) { week = undoState.week; queueSave("week"); }
@@ -953,24 +963,29 @@ $("habitsFromLast").onclick = async () => {
 
 /* ================= Navigation ================= */
 function setView(v) {
-  if (!["day", "week", "goals", "todos"].includes(v)) v = "day";
+  if (!["day", "week", "goals", "todos", "journal"].includes(v)) v = "day";
   view = v;
-  $("dayView").hidden = v !== "day"; $("weekView").hidden = v !== "week"; $("goalsView").hidden = v !== "goals"; $("todosView").hidden = v !== "todos";
+  $("dayView").hidden = v !== "day"; $("weekView").hidden = v !== "week"; $("goalsView").hidden = v !== "goals"; $("todosView").hidden = v !== "todos"; $("journalView").hidden = v !== "journal";
   $("tabDay").setAttribute("aria-selected", String(v === "day"));
   $("tabWeek").setAttribute("aria-selected", String(v === "week"));
   $("tabGoals").setAttribute("aria-selected", String(v === "goals"));
   $("tabTodos").setAttribute("aria-selected", String(v === "todos"));
+  $("tabJournal").setAttribute("aria-selected", String(v === "journal"));
+  document.querySelector(".datenav").classList.toggle("muted-nav", v === "journal");
   document.body.classList.toggle("wide", v === "todos");
   clearSel();
   if (v === "week") renderWeek();
   if (v === "goals") goals.render();
   if (v === "todos") { renderAsana(); asanaMaybeRefresh(); }
+  if (v === "journal") journal.show(true);
   try { localStorage.setItem("tagesplaner:view", v); } catch {}
 }
 $("tabDay").onclick = () => setView("day");
 $("tabWeek").onclick = () => setView("week");
 $("tabGoals").onclick = () => setView("goals");
 $("tabTodos").onclick = () => setView("todos");
+$("tabJournal").onclick = () => setView("journal");
+$("ideasToJournal").onclick = () => { setView("journal"); $("jrText").focus(); };
 $("prev").onclick = () => loadDate(addDays(current, view === "week" ? -7 : -1));
 $("next").onclick = () => loadDate(addDays(current, view === "week" ? 7 : 1));
 $("today").onclick = () => loadDate(todayIso());
@@ -1026,7 +1041,7 @@ $("importFile").addEventListener("change", async e => {
     const data = JSON.parse(await f.text());
     if (data.app !== "tagesplaner") throw new Error("Keine Tagesplaner-Datei");
     let n = 0;
-    for (const kind of ["days", "weeks", "meta"]) for (const [id, v] of Object.entries(data[kind] || {})) { await store.set(kind, id, v); n++; }
+    for (const kind of ["days", "weeks", "meta", "journal", "reviews"]) for (const [id, v] of Object.entries(data[kind] || {})) { await store.set(kind, id, v); n++; }
     await loadMeta(); await loadDate(current);
     toast(`${n} Einträge importiert`, false);
   } catch (err) { toast("Import fehlgeschlagen: " + err.message, false); }
@@ -1684,6 +1699,8 @@ async function start(s) {
   setView(v);
   loadGmail();
   initAsana();
+  await journal.init();
+  if (view === "journal") journal.show(true);
 }
 
 function showLogin(msg) {

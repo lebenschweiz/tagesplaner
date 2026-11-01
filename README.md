@@ -68,6 +68,14 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - „+ Tag“ übernimmt eine Aufgabe in die Aufgaben des gewählten Tages, „+ Zeitplan“ in den nächsten freien Zeitblock
 - Lädt beim Start und wenn du nach mehr als 5 Minuten zurückkehrst neu; Liste oder Board merkt sich die App
 
+**Gedanken** – eigener Reiter oben, Journal mit KI-Auswertung
+- Über den Tag Gedanken 💭, Ideen 💡, Rückmeldungen 💬 und Erkenntnisse ✨ festhalten; Datum und Uhrzeit kommen automatisch dazu. `#Stichworte` werden hervorgehoben und lassen sich suchen.
+- Durchsehen nach Zeitraum (Heute, 7 Tage, 30 Tage, 3 Monate, 12 Monate oder frei von/bis), nach Art filtern, durchsuchen, bearbeiten, löschen (mit „Rückgängig“).
+- Auf Wunsch kommen die Notizen „Gedanken, Ideen & Erfolge“ der Tagesseite dazu, so zählen auch frühere Tage für den Jahresrückblick.
+- **KI-Auswertung** des gewählten Zeitraums mit Claude: Hauptthemen, Ideen-Speicher mit den vielversprechendsten Ideen, Rückmeldungen, Muster & Entwicklung (bei langen Zeiträumen nach Monaten/Quartalen), Erkenntnisse, offene Schleifen, Empfehlungen und Reflexionsfragen, immer mit Datum und Zitat belegt. Optional ein eigener Fokus („Welche Geschäftsideen kamen öfter?“).
+- Auswertungen werden gespeichert und sind unter „Frühere Auswertungen“ wieder abrufbar.
+- Ohne Schlüssel: „Prompt kopieren“ legt Auswertungs-Prompt und Einträge in die Zwischenablage, zum Einfügen in claude.ai. Den Prompt selbst zeigt „Prompt ansehen“ (steht in [`js/insights.js`](js/insights.js)).
+
 **Woche**
 - Gewohnheits-Tracker (6 Gewohnheiten × 7 Tage), Namen werden in die nächste Woche übernommen
 - Ziele & Etappen der Woche: Wochenziele zu Monats-/Jahreszielen anlegen, Tagesziele der Woche, übergeordnete Ziele mit Restzeit
@@ -133,6 +141,20 @@ Wo der Schlüssel liegt:
 
 „Trennen“ löscht ihn auf dem Gerät und im Konto. Ganz ungültig machst du ihn in Asana unter „Meine Apps“ → Token widerrufen. Ein Asana-Zugriffstoken hat dieselben Rechte wie du in Asana; die App nutzt davon nur Lesen, Abhaken, Verschieben und Anlegen eigener Aufgaben.
 
+## KI-Auswertung einrichten (optional, 2 Minuten)
+
+Ohne Einrichtung funktioniert „Prompt kopieren“. Für „Auswerten“ direkt in der App:
+
+1. <https://console.anthropic.com> → anmelden → **Billing**: etwas Guthaben laden (z. B. 5 US-Dollar).
+2. **Settings → API Keys → Create Key**, Name z. B. „Tagesplaner“ → Schlüssel kopieren (beginnt mit `sk-ant-`).
+3. In der App im Reiter **Gedanken** → **KI-Zugang (Claude)** einfügen → **Speichern**.
+
+Wo der Schlüssel liegt und wohin die Daten gehen:
+- Im Browser (localStorage) und mit Häkchen „Auf allen meinen Geräten verwenden“ zusätzlich unter `users/<deine-id>/secrets/anthropic` (nur für dich lesbar, nicht im Export).
+- Die Einträge des gewählten Zeitraums gehen nur beim Tippen auf „Auswerten“ direkt an `api.anthropic.com` (Modell Claude Opus 5.5), an keinen anderen Server.
+- Kosten: ca. 4 US-Dollar pro Million Tokens Eingabe. Ein Jahr mit fünf kurzen Einträgen pro Tag sind rund 100 000 Tokens, also etwa 0.50 bis 1 US-Dollar pro Auswertung. Die App zeigt vorher eine Schätzung.
+- „Schlüssel entfernen“ löscht ihn auf dem Gerät und im Konto; ganz ungültig machst du ihn in der Anthropic Console.
+
 ## Lokal ausprobieren
 
 ```bash
@@ -153,6 +175,8 @@ Für die Google-Anmeldung lokal zusätzlich `localhost` als autorisierte Domain 
 - `js/gmail.js` – Gmail lesen (Liste, Betreff, Absender)
 - `js/asana.js` – Asana: Meine Aufgaben mit Bereichen lesen, abhaken, neue Aufgaben anlegen
 - `js/gcal.js` – Google Kalender lesen (Termine eines Tages)
+- `js/journal.js` – Gedanken-Journal: Erfassen, Zeitraum, Suche, gespeicherte Auswertungen
+- `js/insights.js` – KI-Auswertung: der Auswertungs-Prompt und der Aufruf von Claude
 - `js/store.js` – Speicher (Firestore oder localStorage)
 - `js/firebase-config.js` – deine Firebase-Konfiguration
 - `firestore.rules` – Zugriffsregeln für die Datenbank

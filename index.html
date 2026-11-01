@@ -39,6 +39,7 @@
           <button role="tab" id="tabWeek" aria-selected="false">Woche</button>
           <button role="tab" id="tabGoals" aria-selected="false">Ziele</button>
           <button role="tab" id="tabTodos" aria-selected="false">To do's</button>
+          <button role="tab" id="tabJournal" aria-selected="false">Gedanken</button>
         </nav>
       </div>
       <div class="datenav">
@@ -312,7 +313,8 @@
         <div class="eve-col">
           <details class="fold card" data-fold="ideas" open>
             <summary><span class="label">Gedanken, Ideen &amp; Erfolge</span></summary>
-            <div class="fold-body notes"><textarea id="ideas" data-k="ideas" rows="4" aria-label="Gedanken, Ideen und Erfolge" placeholder="Was lief gut? Was habe ich gelernt?"></textarea></div>
+            <div class="fold-body notes"><textarea id="ideas" data-k="ideas" rows="4" aria-label="Gedanken, Ideen und Erfolge" placeholder="Was lief gut? Was habe ich gelernt?"></textarea>
+              <button type="button" class="linkish" id="ideasToJournal">Einzelne Gedanken mit Uhrzeit festhalten und auswerten → Gedanken</button></div>
           </details>
           <details class="fold card" data-fold="relax">
             <summary><span class="label">To-relax-Liste</span></summary>
@@ -504,6 +506,79 @@
     </div>
     <div class="as-board" id="asanaBoard" aria-label="Board"></div>
     <div class="as-list" id="asanaListView" aria-label="Liste" hidden></div>
+  </main>
+
+  <!-- GEDANKEN: Journal mit KI-Auswertung -->
+  <main id="journalView" class="wrap view jr-view" hidden>
+    <div class="jr-head">
+      <h1>Gedanken &amp; Ideen</h1>
+      <p class="sub">Halte über den Tag fest, was dir durch den Kopf geht. Die KI findet später Themen, Muster und die besten Ideen, auch über ein ganzes Jahr.</p>
+    </div>
+
+    <form class="card jr-capture" id="jrForm">
+      <div class="jr-kinds" id="jrKinds" role="radiogroup" aria-label="Art des Eintrags"></div>
+      <textarea id="jrText" rows="3" aria-label="Neuer Eintrag"></textarea>
+      <div class="jr-capture-foot"><span class="sub">Strg+Enter speichert · Datum und Uhrzeit kommen automatisch dazu</span><button class="btn primary">Festhalten</button></div>
+    </form>
+
+    <div class="jr-layout">
+      <section class="jr-main" aria-label="Einträge">
+        <div class="jr-filter">
+          <nav class="jr-presets" id="jrPresets" aria-label="Zeitraum"></nav>
+          <div class="jr-custom" id="jrCustom" hidden>
+            <label>von <input type="date" id="jrFrom"></label>
+            <label>bis <input type="date" id="jrTo"></label>
+          </div>
+          <div class="jr-filter-row">
+            <select id="jrFilterKind" aria-label="Nach Art filtern"></select>
+            <input type="text" id="jrSearch" placeholder="Suchen, z. B. #Cocktail" aria-label="Einträge durchsuchen">
+          </div>
+          <label class="sub jr-days"><input type="checkbox" class="check" id="jrDays"> Notizen „Gedanken, Ideen &amp; Erfolge“ von der Tagesseite einbeziehen</label>
+          <p class="sub" id="jrStats" aria-live="polite"></p>
+        </div>
+        <div id="jrList" class="jr-list"></div>
+      </section>
+
+      <aside class="card jr-ai" aria-labelledby="jrAiH">
+        <h2 class="label" id="jrAiH">KI-Auswertung</h2>
+        <p class="sub" id="jrAiInfo"></p>
+        <input type="text" id="jrFocus" placeholder="Worauf soll die KI besonders achten? (optional)" aria-label="Besonderer Fokus der Auswertung">
+        <div class="jr-ai-btns">
+          <button type="button" class="btn primary" id="jrAnalyze">Auswerten</button>
+          <button type="button" class="btn" id="jrCopy" title="Prompt samt Einträgen kopieren, z. B. für claude.ai">Prompt kopieren</button>
+          <button type="button" class="btn" id="jrStop" hidden>Stopp</button>
+        </div>
+        <div id="jrResult" class="jr-result" hidden aria-live="polite"></div>
+
+        <details class="jr-more" id="jrReviews">
+          <summary>Frühere Auswertungen <span class="sub" id="jrReviewCount"></span></summary>
+          <div id="jrReviewList"></div>
+        </details>
+        <details class="jr-more" id="jrKeyBox">
+          <summary>KI-Zugang (Claude) <span class="sub" id="jrKeyState"></span></summary>
+          <div id="jrKeySet" class="jr-key">
+            <p class="sub">Für „Auswerten“ direkt in der App braucht es einen eigenen Schlüssel von Anthropic. Ohne Schlüssel geht „Prompt kopieren“ und in <a href="https://claude.ai/new" target="_blank" rel="noopener">claude.ai</a> einfügen.</p>
+            <ol class="sub">
+              <li>In der <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Anthropic Console</a> anmelden, unter Billing etwas Guthaben laden.</li>
+              <li>„Create Key“, Name z. B. „Tagesplaner“, Schlüssel kopieren und hier einfügen.</li>
+            </ol>
+            <div class="asana-key">
+              <input type="password" id="jrKey" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" aria-label="Anthropic-Schlüssel">
+              <button type="button" class="btn primary" id="jrKeySave">Speichern</button>
+            </div>
+            <label class="sub asana-sync" id="jrSyncLabel"><input type="checkbox" class="check" id="jrSync" checked> Auf allen meinen Geräten verwenden (geschützt in meinem Konto gespeichert)</label>
+          </div>
+          <div id="jrKeyOk" class="jr-key" hidden>
+            <p class="sub">Verbunden. Die Einträge des gewählten Zeitraums gehen nur beim Tippen auf „Auswerten“ direkt an Anthropic (Claude). Eine Jahres-Auswertung kostet je nach Menge meist unter einem US-Dollar.</p>
+            <button type="button" class="btn small" id="jrKeyForget">Schlüssel entfernen</button>
+          </div>
+        </details>
+        <details class="jr-more">
+          <summary>Prompt ansehen</summary>
+          <pre class="jr-prompt" id="jrPrompt"></pre>
+        </details>
+      </aside>
+    </div>
   </main>
 
   <footer class="wrap foot" id="foot"></footer>
