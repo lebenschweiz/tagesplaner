@@ -1,9 +1,9 @@
 // Speicher: Firestore (mit Google-Login) oder localStorage (ohne Konto).
-// Beide bieten dieselbe Schnittstelle: get(kind, id), set(kind, id, data), all().
+// Beide bieten dieselbe Schnittstelle: get(kind, id), set(kind, id, data), remove(kind, id), range(kind, von, bis), all().
 import { firebaseConfig } from "./firebase-config.js";
 
 const FB = "https://www.gstatic.com/firebasejs/10.14.1/";
-const KINDS = ["days", "weeks", "meta"];
+const KINDS = ["days", "weeks", "meta", "journal", "reviews"];
 
 export const cloudAvailable = !!firebaseConfig;
 
@@ -19,11 +19,23 @@ function localStore() {
     async set(kind, id, data) {
       localStorage.setItem(key(kind, id), JSON.stringify(data));
     },
-    async all() {
-      const out = { days: {}, weeks: {}, meta: {} };
+    async remove(kind, id) { localStorage.removeItem(key(kind, id)); },
+    /** Alle Einträge einer Art, deren id zwischen von und bis liegt (Text-Vergleich, z. B. Datum). */
+    async range(kind, from, to) {
+      const out = {}, pre = `tagesplaner:${kind}:`;
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        const m = k && k.match(/^tagesplaner:(days|weeks|meta):(.+)$/);
+        if (!k || !k.startsWith(pre)) continue;
+        const id = k.slice(pre.length);
+        if (id >= from && id <= to) { try { out[id] = JSON.parse(localStorage.getItem(k)); } catch {} }
+      }
+      return out;
+    },
+    async all() {
+      const out = Object.fromEntries(KINDS.map(k => [k, {}]));
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        const m = k && k.match(/^tagesplaner:(days|weeks|meta|journal|reviews):(.+)$/);
         if (m) { try { out[m[1]][m[2]] = JSON.parse(localStorage.getItem(k)); } catch {} }
       }
       return out;
@@ -67,8 +79,16 @@ function cloudStore(fbx, user) {
     async set(kind, id, data) {
       await fs.setDoc(ref(kind, id), data);
     },
+    async remove(kind, id) { await fs.deleteDoc(ref(kind, id)); },
+    async range(kind, from, to) {
+      const q = fs.query(fs.collection(db, "users", user.uid, kind),
+        fs.where(fs.documentId(), ">=", from), fs.where(fs.documentId(), "<=", to));
+      const out = {};
+      (await fs.getDocs(q)).forEach(d => { out[d.id] = d.data(); });
+      return out;
+    },
     async all() {
-      const out = { days: {}, weeks: {}, meta: {} };
+      const out = Object.fromEntries(KINDS.map(k => [k, {}]));
       for (const kind of KINDS) {
         const snap = await fs.getDocs(fs.collection(db, "users", user.uid, kind));
         snap.forEach(d => { out[kind][d.id] = d.data(); });
