@@ -233,6 +233,10 @@ table{border-collapse:collapse;width:100%}
 .habits td.num,.habits th.num{width:2.2em;color:var(--muted);font-variant-numeric:tabular-nums}
 .habits th.today{color:var(--ink);border-bottom:2px solid var(--gold)}
 .habits .check{margin:auto}
+.habits td.del,.habits th.del{width:2em}
+.habits td.del .btn{opacity:.35}
+.habits tr:hover td.del .btn,.habits td.del .btn:focus-visible{opacity:1}
+#habitAdd{margin-top:10px}
 .goals{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid var(--ink)}
 @media (max-width:640px){.goals{grid-template-columns:1fr}}
 .goal{padding:14px 16px;display:grid;gap:6px;min-width:0}
