@@ -59,9 +59,15 @@ function normDay(x, date) {
   out.slots = x.slots && typeof x.slots === "object" ? x.slots : {};
   return out;
 }
+const blankHabit = (s = {}) => ({ name: (s && s.name) || "", days: Array.from({ length: 7 }, (_, j) => !!((s && s.days) || [])[j]) });
+const habitsFromNames = names => {
+  const hs = names.map(n => blankHabit({ name: n }));
+  while (hs.length < HABIT_ROWS) hs.push(blankHabit());
+  return hs;
+};
 function blankWeek(monday) {
   return { monday,
-    habits: Array.from({ length: HABIT_ROWS }, () => ({ name: "", days: [false, false, false, false, false, false, false] })),
+    habits: Array.from({ length: HABIT_ROWS }, () => blankHabit()),
     goals: [0, 1].map(() => ({ text: "", steps: list(3) })),
     meaning: null, meaningNotes: "", wins: "", areaRatings: {} };
 }
@@ -69,10 +75,8 @@ function normWeek(x, monday) {
   const b = blankWeek(monday);
   if (!x || typeof x !== "object") return b;
   const out = Object.assign(b, x, { monday });
-  out.habits = blankWeek(monday).habits.map((h, i) => {
-    const s = (x.habits || [])[i] || {};
-    return { name: s.name || "", days: h.days.map((_, j) => !!(s.days || [])[j]) };
-  });
+  // Beliebig viele Gewohnheiten: gespeicherte Liste übernehmen (ältere Wochen hatten fix 6 Zeilen)
+  out.habits = Array.isArray(x.habits) ? x.habits.map(blankHabit) : b.habits;
   out.goals = blankWeek(monday).goals.map((g, i) => {
     const s = (x.goals || [])[i] || {};
     return { text: s.text || "", steps: g.steps.map((st, j) => Object.assign(st, (s.steps || [])[j] || {})) };
@@ -150,7 +154,7 @@ $("toastUndo").onclick = () => {
   if (toastUndoFn) { const f = toastUndoFn; toastUndoFn = null; $("toast").hidden = true; f(); return; }
   if (!undoState) return;
   if (undoState.day.date === day.date) { day = undoState.day; queueSave("day"); }
-  if (undoState.week.monday === week.monday) { week = undoState.week; queueSave("week"); }
+  if (undoState.week.monday === week.monday) { week = undoState.week; queueSave("week"); syncHabitNames(); }
   if (JSON.stringify(undoState.goals) !== JSON.stringify(goals.data())) { goals.load(undoState.goals); queueSave("goals"); }
   if (JSON.stringify(undoState.columns) !== JSON.stringify(meta.columns)) { meta.columns = undoState.columns; buildColumns(); queueSave("meta"); }
   undoState = null; $("toast").hidden = true;
@@ -853,13 +857,19 @@ function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<":
 
 /* ================= Wochenansicht ================= */
 const habitBody = $("habitTable").tBodies[0];
-for (let i = 0; i < HABIT_ROWS; i++) {
-  const tr = document.createElement("tr");
-  tr.innerHTML = `<td class="num">${i + 1}</td><td><input type="text" id="hn${i}" data-wk="habits.${i}.name" data-ac="habit" list="ac-habit" autocomplete="off" placeholder="${["z. B. Morgenroutine", "z. B. Sport", "", "", "", ""][i]}"></td>` +
-    Array.from({ length: 7 }, (_, j) => `<td><input type="checkbox" class="check" data-wk="habits.${i}.days.${j}" aria-label="${DAY_NAMES[j]}"></td>`).join("") +
-    `<td class="num" data-sum="${i}"></td>`;
-  habitBody.appendChild(tr);
+// Zeilen passend zur Anzahl Gewohnheiten der Woche aufbauen
+function buildHabitRows() {
+  if (habitBody.rows.length === week.habits.length) return;
+  habitBody.replaceChildren(...week.habits.map((_, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td class="num">${i + 1}</td><td><input type="text" id="hn${i}" data-wk="habits.${i}.name" data-ac="habit" list="ac-habit" autocomplete="off" placeholder="${["z. B. Morgenroutine", "z. B. Sport"][i] || "Gewohnheit"}"></td>` +
+      Array.from({ length: 7 }, (_, j) => `<td><input type="checkbox" class="check" data-wk="habits.${i}.days.${j}" aria-label="${DAY_NAMES[j]}"></td>`).join("") +
+      `<td class="num" data-sum="${i}"></td>` +
+      `<td class="del"><button type="button" class="btn small icon" data-habit-del="${i}" aria-label="Gewohnheit entfernen" title="Gewohnheit entfernen">×</button></td>`;
+    return tr;
+  }));
 }
+const syncHabitNames = () => { meta.habitNames = week.habits.map(h => h.name); queueSave("meta"); };
 [0, 1].forEach(i => {
   $("goal" + i).innerHTML = `<div class="label">⟶ Ziel ${i + 1}:</div>` +
     `<textarea data-wk="goals.${i}.text" rows="3" aria-label="Ziel ${i + 1}"></textarea>` +
@@ -870,6 +880,7 @@ $("scale").innerHTML = Array.from({ length: 10 }, (_, i) => `<button type="butto
 let weekDays = [];
 async function renderWeek() {
   rendering = true;
+  buildHabitRows();
   document.querySelectorAll("#weekView [data-wk]").forEach(el => {
     const v = getPath(week, el.dataset.wk);
     if (el.type === "checkbox") el.checked = !!v; else el.value = v || "";
@@ -941,6 +952,15 @@ $("weekView").addEventListener("click", e => {
     if (week.areaRatings[id] === v) delete week.areaRatings[id]; else week.areaRatings[id] = v;
     renderAreaWeek(); queueSave("week"); return;
   }
+  const hd = e.target.closest("[data-habit-del]");
+  if (hd) {
+    const i = +hd.dataset.habitDel, h = week.habits[i];
+    snapshotForUndo();
+    week.habits.splice(i, 1);
+    syncHabitNames(); renderWeek(); queueSave("week");
+    if (h.name.trim()) toast(`„${h.name.trim()}“ entfernt`);
+    return;
+  }
   const s = e.target.closest("#scale button");
   if (s) { snapshotForUndo(); week.meaning = week.meaning === +s.dataset.v ? null : +s.dataset.v; renderWeek(); queueSave("week"); }
 });
@@ -948,15 +968,21 @@ $("weekView").addEventListener("input", e => {
   if (rendering) return;
   const el = e.target; if (!el.dataset.wk) return;
   setPath(week, el.dataset.wk, el.type === "checkbox" ? el.checked : el.value);
-  if (el.dataset.wk.endsWith(".name")) { meta.habitNames = week.habits.map(h => h.name); queueSave("meta"); }
+  if (el.dataset.wk.endsWith(".name")) syncHabitNames();
   decorateWeek(); queueSave("week");
   if (el.type === "checkbox" && weekDays.length) renderOverview();
 });
+$("habitAdd").onclick = () => {
+  week.habits.push(blankHabit());
+  renderWeek(); queueSave("week");
+  $("hn" + (week.habits.length - 1)).focus();
+};
 $("habitsFromLast").onclick = async () => {
   const prev = normWeek(await store.get("weeks", addDays(week.monday, -7)), addDays(week.monday, -7));
   const names = prev.habits.map(h => h.name).some(Boolean) ? prev.habits.map(h => h.name) : meta.habitNames;
   if (!names || !names.some(Boolean)) return toast("In der Vorwoche sind keine Gewohnheiten eingetragen.", false);
   snapshotForUndo();
+  while (week.habits.length < names.length) week.habits.push(blankHabit());
   week.habits.forEach((h, i) => { if (!h.name.trim() && names[i]) h.name = names[i]; });
   renderWeek(); queueSave("week"); toast("Gewohnheiten übernommen");
 };
@@ -1017,7 +1043,7 @@ async function loadDate(date, silent) {
   day = normDay(d, date);
   week = normWeek(w, mon);
   // Neue Woche: Gewohnheitsnamen automatisch übernehmen
-  if (!w && meta.habitNames && meta.habitNames.some(Boolean)) week.habits.forEach((h, i) => { h.name = meta.habitNames[i] || ""; });
+  if (!w && meta.habitNames && meta.habitNames.some(Boolean)) week.habits = habitsFromNames(meta.habitNames);
   $("datePick").value = date;
   renderAll();
   if (asanaData.tasks.length && view === "todos") renderAsana();

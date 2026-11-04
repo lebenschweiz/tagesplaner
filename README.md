@@ -77,7 +77,7 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - Ohne Schlüssel: „Prompt kopieren“ legt Auswertungs-Prompt und Einträge in die Zwischenablage, zum Einfügen in claude.ai. Den Prompt selbst zeigt „Prompt ansehen“ (steht in [`js/insights.js`](js/insights.js)).
 
 **Woche**
-- Gewohnheits-Tracker (6 Gewohnheiten × 7 Tage), Namen werden in die nächste Woche übernommen
+- Gewohnheits-Tracker: beliebig viele Gewohnheiten × 7 Tage („+ Gewohnheit hinzufügen“, mit × entfernen), Namen werden in die nächste Woche übernommen
 - Ziele & Etappen der Woche: Wochenziele zu Monats-/Jahreszielen anlegen, Tagesziele der Woche, übergeordnete Ziele mit Restzeit
 - Wochen-Fokus: Ziel 1 und Ziel 2 mit je 3 Schritten
 - Wochenübersicht: Fokus, To-dos, Plan umgesetzt, getrackte Stunden, Gewohnheiten, Stimmung, Selbsteinschätzung, Wasser, Fitness – pro Tag
