@@ -292,7 +292,7 @@ dialog::backdrop{background:rgb(0 0 0 / .35)}
 .water button{width:22px;height:28px;border:1.5px solid var(--sel-line);border-radius:3px 3px 6px 6px;background:transparent;padding:0}
 .water button.on{background:var(--sel-line)}
 @media (max-width:700px){
-  .top{position:static}
+  .top{position:relative}
   .copybar{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
   .copybar .btn{flex:none}
   .dayhead h1{font-size:21px}
@@ -649,3 +649,43 @@ select,input[type=date]{font:inherit;color:var(--ink);background:var(--sheet);bo
 .jr-review-open:hover b{text-decoration:underline}
 .jr-review-del{border:0;background:none;color:var(--muted);padding:0 6px}
 .jr-prompt{white-space:pre-wrap;font-size:12.5px;background:var(--slot-alt);border:1px solid var(--line);border-radius:6px;padding:10px;max-height:320px;overflow:auto;margin:0}
+
+/* ================= Timer ================= */
+.timer summary{font-variant-numeric:tabular-nums}
+.timer.running summary{border-color:var(--day);color:var(--day);font-weight:600}
+.timer.ringing summary,.timer-pill.ringing{animation:tm-ring 1s ease-in-out infinite}
+.timer.ringing summary{background:var(--now-line);border-color:var(--now-line);color:#fff}
+@keyframes tm-ring{50%{opacity:.55}}
+.timer-pop{width:300px;max-width:calc(100vw - 32px);gap:6px}
+.timer-pop h5{margin:6px 0 0;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.tm-run{display:grid;gap:6px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.tm-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm-time{font-size:34px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+.tm-run.done .tm-time{color:var(--now-line);font-size:26px}
+.tm-bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.tm-bar i{display:block;height:100%;width:0;background:var(--day);transition:width 1s linear}
+.tm-run.done .tm-bar i{background:var(--now-line)}
+.tm-acts{display:flex;gap:6px;flex-wrap:wrap}
+.tm-presets{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.tm-presets .btn{justify-content:center;font-variant-numeric:tabular-nums}
+.tm-block{display:grid;grid-template-columns:1fr auto;gap:0 10px;text-align:left;border:1px solid var(--line);background:var(--day-soft);border-radius:8px;padding:8px 10px;color:var(--ink);cursor:pointer}
+.tm-block:hover{border-color:var(--day)}
+.tm-block .tm-when{grid-column:1/-1;font-size:12px;color:var(--muted)}
+.tm-block b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm-block .tm-dur{font-size:13.5px;color:var(--day);font-weight:600;white-space:nowrap}
+.tm-custom label{display:flex;align-items:center;gap:6px;font-size:14px}
+.tm-custom{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px}
+.tm-custom input{width:64px;padding:4px 6px}
+.tm-note{margin:2px 0 0;font-size:12.5px;line-height:1.4}
+.tm-note .linkish{padding:0;font-size:12.5px}
+.timer-pill{display:none}
+@media (max-width:700px){
+  .timer-pill:not([hidden]){position:fixed;right:12px;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:40;display:flex;align-items:center;gap:8px;max-width:calc(100vw - 24px);
+    background:linear-gradient(90deg,var(--day-soft) calc(var(--tp,0)*100%),var(--sheet) 0);border:1px solid var(--day);border-radius:999px;padding:6px 6px 6px 14px;box-shadow:0 6px 24px rgb(0 0 0 / .18);cursor:pointer}
+  .timer-pill .tp-time{font-weight:700;font-variant-numeric:tabular-nums}
+  .timer-pill .tp-name{font-size:13px;color:var(--muted);max-width:40vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .timer-pill button{border:0;background:transparent;width:30px;height:30px;border-radius:50%;font-size:15px;color:var(--ink)}
+  .timer-pill.ringing{background:var(--now-line);border-color:var(--now-line)}
+  .timer-pill.ringing *{color:#fff!important}
+  .timer .menu-pop{right:auto;left:0}
+}
