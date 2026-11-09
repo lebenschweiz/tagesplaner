@@ -37,6 +37,7 @@ Tages- und Wochenplaner nach dem Vorbild eines Papier-Planers – als Web-App f�
 - **Mehrere Zeilen markieren**: Auf die Uhrzeit klicken und ziehen (oder Shift-Klick; auf dem Handy zwei Uhrzeiten antippen). Dann: Plan ausfüllen, Plan → Gemacht, Kopieren, Einfügen, Leeren. `Strg+C`, `Strg+D` funktionieren auch.
 - **Einfügen aus Excel/Notizen**: Mehrere Zeilen einfügen verteilt sie untereinander (Tab trennt Geplant/Gemacht).
 - **Tag vorbereiten** (Menü oben rechts): Zeitplan von gestern, Zeitplan vom letzten gleichen Wochentag, offene To-dos von gestern, gestern Gemachtes als Plan.
+- **Timer** (⏱ oben rechts): 15, 25 oder 30 Minuten, eine eigene Dauer oder direkt ein geplanter Block aus dem Zeitplan („Als Nächstes · 09:00–09:45 · Deep Work“ startet 45 Minuten, „Jetzt“ läuft bis zum Ende des aktuellen Blocks). Pause, +5 Min und Stopp. Bei Ablauf kommt eine Browser-Benachrichtigung und ein Ton; der Timer läuft auch nach dem Neuladen weiter. Auf dem Handy klingelt er nur, solange die Seite geöffnet ist.
 - **Vorlagen**: Einen Zeitplan als Vorlage speichern (z. B. „Arbeitstag“) und an anderen Tagen einfügen.
 - Jede dieser Aktionen lässt sich mit „Rückgängig“ zurücknehmen.
 
@@ -172,6 +173,7 @@ Für die Google-Anmeldung lokal zusätzlich `localhost` als autorisierte Domain 
 - `js/quotes.js` – Satz des Tages: rund 690 Sprüche, jeden Tag ein anderer (Wiederholung erst nach knapp 2 Jahren)
 - `js/autocomplete.js` – Excel-artige Vorschläge
 - `js/goals.js` – Ziele mit Etappen und Fristen
+- `js/timer.js` – Timer mit Vorgaben und geplanten Blöcken, Benachrichtigung und Ton bei Ablauf
 - `js/gmail.js` – Gmail lesen (Liste, Betreff, Absender)
 - `js/asana.js` – Asana: Meine Aufgaben mit Bereichen lesen, abhaken, neue Aufgaben anlegen
 - `js/gcal.js` – Google Kalender lesen (Termine eines Tages)

@@ -7,6 +7,7 @@ import { createAutocomplete } from "./autocomplete.js";
 import { createGoals } from "./goals.js";
 import { quoteFor } from "./quotes.js";
 import { createJournal } from "./journal.js";
+import { createTimer } from "./timer.js";
 
 /* ================= Grundlagen ================= */
 const $ = id => document.getElementById(id);
@@ -1708,6 +1709,7 @@ async function loadMeta() {
   }
 }
 
+let timer = null;
 async function start(s) {
   if (store && store.mode === s.mode && store.user.email === s.user.email) return;
   store = s;
@@ -1727,6 +1729,7 @@ async function start(s) {
   initAsana();
   await journal.init();
   if (view === "journal") journal.show(true);
+  if (!timer) timer = createTimer({ getTodaySlots: async () => current === todayIso() ? day.slots : (await getDay(todayIso())).slots, toast });
 }
 
 function showLogin(msg) {

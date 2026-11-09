@@ -49,6 +49,10 @@
         <button id="today" class="btn">Heute</button>
       </div>
       <div class="account">
+        <details class="menu timer" id="timerMenu">
+          <summary class="btn" aria-label="Timer"><span aria-hidden="true">⏱</span> <span id="timerLabel">Timer</span></summary>
+          <div class="menu-pop timer-pop" id="timerPop"></div>
+        </details>
         <span id="status" class="status" aria-live="polite"></span>
         <details class="menu">
           <summary class="btn" aria-label="Konto und Daten"><span id="userName">Konto</span> ▾</summary>
@@ -596,6 +600,7 @@
   </form>
 </dialog>
 
+<div class="timer-pill" id="timerPill" hidden role="status"><span class="tp-time"></span><span class="tp-name"></span><button type="button" data-tp="pause" aria-label="Pausieren">⏸</button><button type="button" data-tp="stop" aria-label="Timer beenden">×</button></div>
 <div class="toast" id="toast" hidden><span id="toastText"></span><button class="btn small" id="toastUndo">Rückgängig</button></div>
 
 <datalist id="ac-slot"></datalist>
