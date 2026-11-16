@@ -8,6 +8,7 @@ import { createGoals } from "./goals.js";
 import { quoteFor } from "./quotes.js";
 import { createJournal } from "./journal.js";
 import { createTimer } from "./timer.js";
+import { createOnePercent } from "./onepercent.js";
 
 /* ================= Grundlagen ================= */
 const $ = id => document.getElementById(id);
@@ -990,21 +991,23 @@ $("habitsFromLast").onclick = async () => {
 
 /* ================= Navigation ================= */
 function setView(v) {
-  if (!["day", "week", "goals", "todos", "journal"].includes(v)) v = "day";
+  if (!["day", "week", "goals", "todos", "journal", "onepercent"].includes(v)) v = "day";
   view = v;
-  $("dayView").hidden = v !== "day"; $("weekView").hidden = v !== "week"; $("goalsView").hidden = v !== "goals"; $("todosView").hidden = v !== "todos"; $("journalView").hidden = v !== "journal";
+  $("dayView").hidden = v !== "day"; $("weekView").hidden = v !== "week"; $("goalsView").hidden = v !== "goals"; $("todosView").hidden = v !== "todos"; $("journalView").hidden = v !== "journal"; $("onePercentView").hidden = v !== "onepercent";
   $("tabDay").setAttribute("aria-selected", String(v === "day"));
   $("tabWeek").setAttribute("aria-selected", String(v === "week"));
   $("tabGoals").setAttribute("aria-selected", String(v === "goals"));
   $("tabTodos").setAttribute("aria-selected", String(v === "todos"));
   $("tabJournal").setAttribute("aria-selected", String(v === "journal"));
-  document.querySelector(".datenav").classList.toggle("muted-nav", v === "journal");
+  $("tabOnePercent").setAttribute("aria-selected", String(v === "onepercent"));
+  document.querySelector(".datenav").classList.toggle("muted-nav", v === "journal" || v === "onepercent");
   document.body.classList.toggle("wide", v === "todos");
   clearSel();
   if (v === "week") renderWeek();
   if (v === "goals") goals.render();
   if (v === "todos") { renderAsana(); asanaMaybeRefresh(); }
   if (v === "journal") journal.show(true);
+  if (v === "onepercent") { onePercent.show(); window.scrollTo(0, 0); }
   try { localStorage.setItem("tagesplaner:view", v); } catch {}
 }
 $("tabDay").onclick = () => setView("day");
@@ -1012,6 +1015,8 @@ $("tabWeek").onclick = () => setView("week");
 $("tabGoals").onclick = () => setView("goals");
 $("tabTodos").onclick = () => setView("todos");
 $("tabJournal").onclick = () => setView("journal");
+$("tabOnePercent").onclick = () => setView("onepercent");
+const onePercent = createOnePercent({ root: $("onePercentView"), onNav: v => { setView(v); window.scrollTo(0, 0); } });
 $("ideasToJournal").onclick = () => { setView("journal"); $("jrText").focus(); };
 $("prev").onclick = () => loadDate(addDays(current, view === "week" ? -7 : -1));
 $("next").onclick = () => loadDate(addDays(current, view === "week" ? 7 : 1));
