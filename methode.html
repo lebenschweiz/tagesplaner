@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Die 1 %-Methode</title>
+<meta name="description" content="Die wichtigsten Ideen aus „Die 1%-Methode“ von James Clear, visuell zusammengefasst.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Lesestrecke im Stil des Planers: Papier, Tinte, Gold. Jede Idee ein Abschnitt mit eigener Grafik. */
+:root{
+  --paper:#f6f7f4; --sheet:#ffffff; --ink:#23302f; --muted:#6b7672; --line:#dfe3de;
+  --gold:#a8843f; --gold-soft:#efe5cf; --ok:#3f7d5a; --ok-soft:#e1efe6; --warn:#b4683a; --warn-soft:#f8eadf; --blue:#4b78a6; --blue-soft:#e6eef6;
+  --f-ui:"Jost","Futura","Century Gothic",system-ui,sans-serif;
+  --f-serif:"Libre Caslon Text",Georgia,serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#161b1a; --sheet:#1e2423; --ink:#e6ebe8; --muted:#97a29e; --line:#333c3a;
+  --gold:#d2ad66; --gold-soft:#3a3222; --ok:#7cc79a; --ok-soft:#1f3329; --warn:#e29a6c; --warn-soft:#3a2a20; --blue:#86b2df; --blue-soft:#1f2c3a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#161b1a; --sheet:#1e2423; --ink:#e6ebe8; --muted:#97a29e; --line:#333c3a;
+  --gold:#d2ad66; --gold-soft:#3a3222; --ok:#7cc79a; --ok-soft:#1f3329; --warn:#e29a6c; --warn-soft:#3a2a20; --blue:#86b2df; --blue-soft:#1f2c3a; color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-ui);font-size:16px;line-height:1.55}
+.wrap{max-width:1040px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{margin:0;text-wrap:balance;line-height:1.2}
+p{margin:0}
+.eyebrow{font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:12px;color:var(--gold)}
+.lead{font-size:17.5px;color:var(--muted);max-width:62ch}
+.sub{color:var(--muted);font-size:14px}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+.top{border-bottom:1px solid var(--line);padding-block:12px}
+.top .wrap{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.top a{color:var(--ink);text-decoration:none;font-weight:500}
+.top a.back::before{content:"‹ ";color:var(--muted)}
+.top .sub a{color:var(--muted);text-decoration:underline}
+
+/* Kapitelnavigation */
+.toc{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;padding-block:14px;scrollbar-width:thin}
+.toc a{flex:none;font-size:13.5px;text-decoration:none;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:4px 12px;background:var(--sheet)}
+.toc a:hover{color:var(--ink);border-color:var(--gold)}
+
+section.idea{padding-block:44px;border-bottom:1px solid var(--line);display:grid;gap:22px}
+section.idea:last-of-type{border-bottom:0}
+.idea-h{display:grid;gap:8px}
+.idea-h h2{font-family:var(--f-serif);font-weight:700;font-size:clamp(24px,3.4vw,32px)}
+.two{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;align-items:center}
+@media (max-width:820px){.two{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:20px}
+.take{border-left:3px solid var(--gold);padding:4px 0 4px 14px;font-family:var(--f-serif);font-style:italic;font-size:17px}
+.take b{font-style:normal}
+
+/* Hero */
+.hero{padding-block:36px 40px;display:grid;gap:20px}
+.hero h1{font-family:var(--f-serif);font-weight:700;font-size:clamp(34px,6vw,58px);letter-spacing:-.01em}
+.hero h1 em{color:var(--gold);font-style:italic}
+.calc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:640px){.calc{grid-template-columns:minmax(0,1fr)}}
+.big{display:grid;gap:2px}
+.big .k{font-size:13px;color:var(--muted)}
+.big .v{font-family:var(--f-serif);font-weight:700;font-size:34px;font-variant-numeric:tabular-nums;line-height:1.1}
+.big.up .v{color:var(--ok)} .big.down .v{color:var(--warn)}
+.sliders{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 24px}
+@media (max-width:640px){.sliders{grid-template-columns:minmax(0,1fr)}}
+.sliders label{display:grid;gap:4px;font-size:14px}
+.sliders label span{display:flex;justify-content:space-between}
+.sliders label b{font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--gold)}
+svg{display:block;width:100%;height:auto;overflow:visible}
+svg text{font-family:var(--f-ui);font-size:12px;fill:var(--muted)}
+svg .lbl{fill:var(--ink);font-weight:600}
+
+/* Ringe */
+.rings-wrap{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:28px;align-items:center}
+@media (max-width:720px){.rings-wrap{grid-template-columns:minmax(0,1fr)}}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;padding:3px;background:var(--sheet);gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;padding:5px 12px;border-radius:6px;font-size:14px;color:var(--muted)}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+.steps{display:grid;gap:10px;margin:0;padding:0;list-style:none;counter-reset:s}
+.steps li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;align-items:start}
+.steps li::before{counter-increment:s;content:counter(s);width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--gold-soft);color:var(--gold);font-weight:700;font-size:13px}
+
+/* Schleife */
+.loop{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;position:relative}
+@media (max-width:720px){.loop{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.loop .st{background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:6px;position:relative}
+.loop .st .n{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.loop .st.p .n{color:var(--blue)} .loop .st.s .n{color:var(--ok)}
+.loop .st .t{font-size:15px}
+.loop .st .law{font-size:12.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:6px}
+.phase{display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;text-align:center}
+.phase div{padding:4px;border-radius:6px}
+.phase .p{background:var(--blue-soft);color:var(--blue)} .phase .s{background:var(--ok-soft);color:var(--ok)}
+@media (max-width:720px){.phase{display:none}}
+
+/* Gesetze */
+.laws{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:900px){.laws{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.laws{grid-template-columns:minmax(0,1fr)}}
+.law{background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:10px;align-content:start;border-top:4px solid var(--c)}
+.law .no{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.law h3{font-family:var(--f-serif);font-size:20px;color:var(--c)}
+.law ul{margin:0;padding-left:18px;display:grid;gap:6px;font-size:14.5px}
+.law .tool{font-size:13px;background:var(--paper);border-radius:8px;padding:8px 10px}
+
+/* Werkzeug */
+.builder{display:grid;gap:12px}
+.fillin{font-family:var(--f-serif);font-size:20px;line-height:2.1}
+.fillin input{font:inherit;font-size:18px;font-family:var(--f-ui);color:var(--gold);border:0;border-bottom:2px solid var(--gold);background:transparent;padding:0 4px;width:9em;max-width:100%;text-align:center}
+.fillin input:focus{outline:none;background:var(--gold-soft)}
+.out{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--sheet);border-radius:8px;padding:6px 12px;font-weight:500;font-size:14px;color:var(--ink);text-decoration:none}
+.btn:hover{border-color:var(--gold)}
+.btn.primary{background:var(--gold);border-color:var(--gold);color:var(--sheet)}
+
+/* Zwei-Minuten-Leiter */
+.ladder{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:end}
+@media (max-width:640px){.ladder{grid-template-columns:minmax(0,1fr)}}
+.rung{background:var(--sheet);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:6px;min-height:var(--h)}
+@media (max-width:640px){.rung{min-height:0}}
+.rung .lv{font-size:11.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.rung.start{border-color:var(--ok);background:var(--ok-soft)}
+.rung.start .lv{color:var(--ok)}
+.rung .d{font-size:15px}
+
+/* Kette */
+.chain{display:grid;grid-template-columns:repeat(15,minmax(0,34px));gap:8px}
+@media (max-width:520px){.chain{grid-template-columns:repeat(10,minmax(0,1fr));gap:5px}}
+.chain i{aspect-ratio:1;border-radius:50%;background:var(--ok);display:block;max-width:100%}
+.chain i.miss{background:transparent;box-shadow:inset 0 0 0 2px var(--warn)}
+.chain i.back{box-shadow:0 0 0 3px var(--gold-soft)}
+
+/* Einmalige Aktionen */
+.once{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:820px){.once{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.once{grid-template-columns:minmax(0,1fr)}}
+.once .card{display:grid;gap:8px;align-content:start;padding:16px;border-top:4px solid var(--c)}
+.once h3{font-size:15px;font-weight:600}
+.once ul{margin:0;padding-left:18px;display:grid;gap:4px;font-size:14.5px}
+
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:720px){.facts{grid-template-columns:minmax(0,1fr)}}
+.fact{display:grid;gap:4px}
+.fact b{font-family:var(--f-serif);font-size:22px}
+
+footer{padding-block:28px 48px;color:var(--muted);font-size:13.5px}
+@media (prefers-reduced-motion:no-preference){.grow{transition:stroke-dashoffset 1.2s ease}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="back" href="index.html">Mein Tagesplaner</a>
+    <span class="sub">nach James Clear, „Die 1%-Methode“</span>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div class="hero">
+    <span class="eyebrow">Die 1 %-Methode</span>
+    <h1>Jeden Tag <em>1 % besser</em>.<br>Nach einem Jahr: fast 38-mal so gut.</h1>
+    <p class="lead">Kleine Gewohnheiten wirken wie Zinseszins. Ein Tag allein bringt kaum etwas – aber jede Wiederholung baut auf der letzten auf. In beide Richtungen.</p>
+    <div class="card" style="display:grid;gap:18px">
+      <div class="calc">
+        <div class="big up"><span class="k" id="kUp">1 % besser, 365 Tage</span><span class="v" id="vUp">37,78×</span></div>
+        <div class="big down"><span class="k" id="kDown">1 % schlechter, 365 Tage</span><span class="v" id="vDown">0,03×</span></div>
+        <div class="big"><span class="k">Unterschied nach einem Tag</span><span class="v" id="vDay">±1 %</span></div>
+      </div>
+      <svg id="curve" viewBox="0 0 640 260" role="img" aria-label="Kurve: 1 Prozent besser und 1 Prozent schlechter über die Zeit"></svg>
+      <div class="sliders">
+        <label for="pct"><span>Veränderung pro Tag <b id="pctV">1,0 %</b></span><input type="range" id="pct" min="0.1" max="3" step="0.1" value="1"></label>
+        <label for="days"><span>Anzahl Tage <b id="daysV">365</b></span><input type="range" id="days" min="7" max="730" step="1" value="365"></label>
+      </div>
+    </div>
+  </div>
+
+  <nav class="toc" aria-label="Kapitel">
+    <a href="#tal">Tal der Enttäuschung</a>
+    <a href="#identitaet">Identität</a>
+    <a href="#schleife">Gewohnheitsschleife</a>
+    <a href="#gesetze">Die 4 Gesetze</a>
+    <a href="#werkzeug">Werkzeug</a>
+    <a href="#zwei">Zwei-Minuten-Regel</a>
+    <a href="#grenze">Gewohnheitsgrenze</a>
+    <a href="#gold">Goldlöckchen</a>
+    <a href="#kette">Nie zweimal</a>
+    <a href="#einmal">Einmalige Aktionen</a>
+  </nav>
+
+  <section class="idea" id="tal">
+    <div class="idea-h"><span class="eyebrow">Geduld</span><h2>Das Tal der Enttäuschung</h2></div>
+    <div class="two">
+      <svg id="plateau" viewBox="0 0 480 280" role="img" aria-label="Erwartung linear, Wirklichkeit erst flach, dann steil"></svg>
+      <div style="display:grid;gap:14px">
+        <p>Wir erwarten, dass Fortschritt gleichmäßig wächst. In Wirklichkeit passiert lange fast nichts Sichtbares – und dann auf einmal sehr viel.</p>
+        <p>Genau in dieser flachen Strecke geben die meisten auf. Dabei ist die Arbeit nicht verloren, sie ist <b>gespeichert</b>: Wie bei Eis, das bei −5 °, −4 °, −3 ° nicht schmilzt – und bei 0 ° plötzlich doch.</p>
+        <p class="take">Wenn sich noch nichts zeigt: <b>Weitermachen.</b> Der Durchbruch ist das Ergebnis aller Tage davor.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="idea" id="identitaet">
+    <div class="idea-h"><span class="eyebrow">Wer willst du sein?</span><h2>Von innen nach außen: Identität vor Ergebnis</h2>
+      <p class="lead">Verhalten ändert sich auf drei Ebenen. Die meisten starten außen beim Ergebnis. Dauerhaft wird es, wenn man innen beginnt – bei der Frage, wer man sein will.</p></div>
+    <div class="rings-wrap">
+      <svg id="rings" viewBox="0 0 300 300" role="img" aria-label="Drei Ringe: Ergebnis außen, Prozess in der Mitte, Identität innen"></svg>
+      <div style="display:grid;gap:14px">
+        <div class="seg" role="group" aria-label="Richtung"><button type="button" data-dir="out" aria-pressed="false">Ergebnis zuerst</button><button type="button" data-dir="in" aria-pressed="true">Identität zuerst</button></div>
+        <ol class="steps" id="ringSteps"></ol>
+        <p class="take" id="ringTake"></p>
+      </div>
+    </div>
+    <div class="facts">
+      <div class="card fact"><span class="sub">Statt „Ich will ein Buch schreiben“</span><b>„Ich bin jemand, der schreibt.“</b></div>
+      <div class="card fact"><span class="sub">Statt „Ich will 10 kg abnehmen“</span><b>„Ich bin jemand, der sich bewegt.“</b></div>
+      <div class="card fact"><span class="sub">Statt „Ich versuche aufzuhören“</span><b>„Ich rauche nicht.“</b></div>
+    </div>
+    <p class="sub">Jede erledigte Gewohnheit ist eine Stimme für die Person, die du werden willst. Du musst nicht jede Wahl gewinnen – nur die Mehrheit.</p>
+  </section>
+
+  <section class="idea" id="schleife">
+    <div class="idea-h"><span class="eyebrow">So funktioniert eine Gewohnheit</span><h2>Die Gewohnheitsschleife</h2>
+      <p class="lead">Jede Gewohnheit läuft in vier Schritten ab, immer in derselben Reihenfolge. Wer die Schritte kennt, kann an jedem ansetzen.</p></div>
+    <div class="seg" role="group" aria-label="Beispiel" id="loopEx"></div>
+    <div class="phase"><div class="p">Problem</div><div class="s">Lösung</div></div>
+    <div class="loop" id="loop"></div>
+  </section>
+
+  <section class="idea" id="gesetze">
+    <div class="idea-h"><span class="eyebrow">Das Herzstück</span><h2>Die vier Gesetze der Verhaltensänderung</h2>
+      <p class="lead">Zu jedem Schritt der Schleife gehört ein Gesetz. Für eine gute Gewohnheit drehst du sie auf, für eine schlechte drehst du sie um.</p></div>
+    <div class="seg" role="group" aria-label="Ziel"><button type="button" data-mode="build" aria-pressed="true">Gute Gewohnheit aufbauen</button><button type="button" data-mode="break" aria-pressed="false">Schlechte Gewohnheit ablegen</button></div>
+    <div class="laws" id="laws"></div>
+  </section>
+
+  <section class="idea" id="werkzeug">
+    <div class="idea-h"><span class="eyebrow">Zum Ausprobieren</span><h2>Mach den Auslöser eindeutig</h2>
+      <p class="lead">„Ich sollte mehr lesen“ ist ein Wunsch. Ein konkreter Plan mit Zeit und Ort ist eine Verabredung mit dir selbst – und die hält man viel eher ein.</p></div>
+    <div class="two" style="align-items:start">
+      <div class="card builder">
+        <span class="eyebrow">Umsetzungsabsicht</span>
+        <p class="fillin">Ich werde um <input id="ii1" value="07:00" aria-label="Zeit"> in <input id="ii2" value="der Küche" aria-label="Ort"> <input id="ii3" value="10 Seiten lesen" aria-label="Verhalten" style="width:11em">.</p>
+        <div class="out"><button class="btn" data-copy="ii">Satz kopieren</button><span class="sub" data-copied="ii"></span></div>
+      </div>
+      <div class="card builder">
+        <span class="eyebrow">Gewohnheiten stapeln</span>
+        <p class="fillin">Nach <input id="hs1" value="dem Zähneputzen" aria-label="Bestehende Gewohnheit" style="width:11em"> werde ich <input id="hs2" value="eine Minute dehnen" aria-label="Neue Gewohnheit" style="width:11em">.</p>
+        <div class="out"><button class="btn" data-copy="hs">Satz kopieren</button><span class="sub" data-copied="hs"></span></div>
+      </div>
+    </div>
+    <p class="sub">Tipp: Trag den Satz im Planer als Gewohnheit in der Wochenansicht ein – dann hakst du ihn jeden Tag ab.</p>
+  </section>
+
+  <section class="idea" id="zwei">
+    <div class="idea-h"><span class="eyebrow">Einfach anfangen</span><h2>Die Zwei-Minuten-Regel</h2>
+      <p class="lead">Eine neue Gewohnheit sollte am Anfang weniger als zwei Minuten dauern. Es geht nicht ums Laufen, sondern darum, jemand zu werden, der jeden Tag die Schuhe anzieht. Erst die Gewohnheit etablieren, dann verbessern.</p></div>
+    <div class="seg" role="group" aria-label="Beispiel" id="ladderEx"></div>
+    <div class="ladder" id="ladder"></div>
+  </section>
+
+  <section class="idea" id="grenze">
+    <div class="idea-h"><span class="eyebrow">Wiederholung schlägt Zeit</span><h2>Die Gewohnheitsgrenze</h2></div>
+    <div class="two">
+      <svg id="habitline" viewBox="0 0 480 270" role="img" aria-label="Automatik steigt mit Wiederholungen und überschreitet die Gewohnheitsgrenze"></svg>
+      <div style="display:grid;gap:14px">
+        <p><b>A</b> – Am Anfang kostet es Kraft und Konzentration.<br><b>B</b> – Nach einigen Wiederholungen wird es leichter, braucht aber noch Aufmerksamkeit.<br><b>C</b> – Irgendwann läuft es von selbst. Ab dieser Grenze ist es eine Gewohnheit.</p>
+        <p class="take">Die Frage ist nicht „Wie lange dauert es?“, sondern <b>„Wie oft habe ich es getan?“</b></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="idea" id="gold">
+    <div class="idea-h"><span class="eyebrow">Motiviert bleiben</span><h2>Die Goldlöckchen-Regel</h2></div>
+    <div class="two">
+      <div style="display:grid;gap:14px">
+        <p>Am motiviertesten sind wir bei Aufgaben, die <b>gerade noch zu schaffen</b> sind. Zu leicht wird langweilig, zu schwer frustriert.</p>
+        <p>Wenn eine Gewohnheit zur Routine wird: die Schwierigkeit leicht erhöhen – etwa 4 % über dem, was du gerade kannst.</p>
+        <p class="take">Langeweile ist der größte Feind der Verbesserung, nicht das Scheitern.</p>
+      </div>
+      <svg id="goldi" viewBox="0 0 480 260" role="img" aria-label="Motivationskurve: Spitze im mittleren Schwierigkeitsbereich"></svg>
+    </div>
+  </section>
+
+  <section class="idea" id="kette">
+    <div class="idea-h"><span class="eyebrow">Dranbleiben</span><h2>Setze nie zweimal hintereinander aus</h2>
+      <p class="lead">Jeder verpasst mal einen Tag. Ein Aussetzer ist ein Ausrutscher – zwei sind der Anfang einer neuen, schlechten Gewohnheit. Halte die Kette sichtbar und komm sofort zurück.</p></div>
+    <div class="card" style="display:grid;gap:12px">
+      <div class="chain" id="chain" aria-label="30 Tage: zwei einzelne Aussetzer, danach sofort weiter"></div>
+      <p class="sub">30 Tage, zwei Aussetzer, beide am nächsten Tag aufgeholt – die Gewohnheit lebt weiter. Genau dafür ist der Gewohnheits-Tracker im Planer da.</p>
+    </div>
+  </section>
+
+  <section class="idea" id="einmal">
+    <div class="idea-h"><span class="eyebrow">Einmal entscheiden, lange profitieren</span><h2>Einmalige Aktionen, die gute Gewohnheiten automatisch machen</h2>
+      <p class="lead">Manche Entscheidungen trifft man nur einmal und sie wirken jeden Tag. Sortiert nach deinen Lebensbereichen:</p></div>
+    <div class="once">
+      <div class="card" style="--c:#3f8a5c"><h3>Körper &amp; Gesundheit</h3><ul><li>Wasserflasche sichtbar auf den Tisch stellen</li><li>Verdunkelungsvorhänge fürs Schlafzimmer</li><li>Fernseher aus dem Schlafzimmer</li><li>Kleinere Teller verwenden</li></ul></div>
+      <div class="card" style="--c:#3d6aa8"><h3>Arbeit &amp; Leistung</h3><ul><li>Mitteilungen und Gruppenchats stumm</li><li>Newsletter abbestellen</li><li>Ablenkende Apps vom Handy löschen</li><li>Postfach mit Filtern ordnen</li></ul></div>
+      <div class="card" style="--c:#c96a32"><h3>Soziales Netzwerk</h3><ul><li>Fester Wochentag für einen Anruf bei der Familie</li><li>Geburtstage in den Kalender eintragen</li><li>Wöchentliches Essen mit Freunden einplanen</li></ul></div>
+      <div class="card" style="--c:#a8862a"><h3>Materielle Sicherheit</h3><ul><li>Automatischen Sparauftrag einrichten</li><li>Rechnungen automatisch bezahlen lassen</li><li>Ungenutzte Abos kündigen</li><li>Anbieter um bessere Konditionen bitten</li></ul></div>
+      <div class="card" style="--c:#7a58b0"><h3>Werte &amp; Sinn</h3><ul><li>Tagebuch und Stift aufs Kopfkissen legen</li><li>Feste Zeit für die Wochenplanung im Kalender</li><li>Ein Buch, das dich weiterbringt, griffbereit</li></ul></div>
+      <div class="card" style="--c:var(--gold)"><h3>Umfeld allgemein</h3><ul><li>Gute Auslöser sichtbar machen</li><li>Schlechte Auslöser aus dem Blick räumen</li><li>Ein Ort für eine Tätigkeit: Bett = Schlafen</li></ul></div>
+    </div>
+    <p class="take">Motivation wird überschätzt. Oft ist das Umfeld wichtiger.</p>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  Zusammenfassung in eigenen Worten nach James Clear, „Die 1%-Methode – Minimale Veränderung, maximale Wirkung“ (Goldmann). Für alle Details lohnt sich das Buch.
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var NS = "http://www.w3.org/2000/svg";
+  var fmt = function (x, d) { return x.toLocaleString("de-CH", { minimumFractionDigits: d, maximumFractionDigits: d }); };
+  function el(tag, attrs, text) {
+    var n = document.createElementNS(NS, tag);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function path(pts) { return pts.map(function (p, i) { return (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" "); }
+
+  /* ---------- 1 %-Kurve ---------- */
+  function drawCurve() {
+    var pct = +$("pct").value, days = +$("days").value, r = pct / 100;
+    var up = Math.pow(1 + r, days), down = Math.pow(1 - r, days);
+    $("pctV").textContent = fmt(pct, 1) + " %"; $("daysV").textContent = days;
+    $("kUp").textContent = fmt(pct, 1) + " % besser, " + days + " Tage";
+    $("kDown").textContent = fmt(pct, 1) + " % schlechter, " + days + " Tage";
+    $("vUp").textContent = (up >= 100 ? fmt(up, 0) : fmt(up, 2)) + "×";
+    $("vDown").textContent = (down < 0.01 ? "<0,01" : fmt(down, 2)) + "×";
+    $("vDay").textContent = "±" + fmt(pct, 1) + " %";
+    var svg = $("curve"); svg.replaceChildren();
+    var W = 640, H = 260, L = 44, R = 20, T = 16, B = 34;
+    var maxY = Math.max(2, up);
+    var x = function (d) { return L + d / days * (W - L - R); };
+    var y = function (v) { return H - B - v / maxY * (H - T - B); };
+    // Raster
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (f) {
+      var v = maxY * f;
+      svg.append(el("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: "var(--line)" }));
+      svg.append(el("text", { x: L - 8, y: y(v) + 4, "text-anchor": "end" }, (v >= 10 ? fmt(v, 0) : fmt(v, 1)) + "×"));
+    });
+    [0, 0.5, 1].forEach(function (f) {
+      svg.append(el("text", { x: x(days * f), y: H - 12, "text-anchor": f === 0 ? "start" : f === 1 ? "end" : "middle" }, "Tag " + Math.round(days * f)));
+    });
+    var n = 120, pu = [], pd = [];
+    for (var i = 0; i <= n; i++) { var d = days * i / n; pu.push([x(d), y(Math.pow(1 + r, d))]); pd.push([x(d), y(Math.pow(1 - r, d))]); }
+    svg.append(el("line", { x1: L, x2: W - R, y1: y(1), y2: y(1), stroke: "var(--muted)", "stroke-dasharray": "5 4" }));
+    svg.append(el("path", { d: path(pd), fill: "none", stroke: "var(--warn)", "stroke-width": 3, "stroke-linecap": "round" }));
+    var area = pu.concat([[x(days), y(0)], [x(0), y(0)]]);
+    svg.append(el("path", { d: path(area) + "Z", fill: "var(--ok)", "fill-opacity": ".08" }));
+    svg.append(el("path", { d: path(pu), fill: "none", stroke: "var(--ok)", "stroke-width": 3.5, "stroke-linecap": "round" }));
+    var last = pu[pu.length - 1];
+    svg.append(el("circle", { cx: last[0], cy: last[1], r: 5, fill: "var(--ok)" }));
+    svg.append(el("text", { x: last[0] - 10, y: Math.max(T + 12, last[1] + 4), "text-anchor": "end", class: "lbl" }, fmt(1 + r, 3) + "^" + days + " = " + (up >= 100 ? fmt(up, 0) : fmt(up, 2))));
+    svg.append(el("text", { x: x(days) - 8, y: y(down) - 8, "text-anchor": "end" }, fmt(1 - r, 3) + "^" + days + " = " + (down < 0.01 ? "<0,01" : fmt(down, 2))));
+  }
+  $("pct").addEventListener("input", drawCurve); $("days").addEventListener("input", drawCurve);
+
+  /* ---------- Plateau ---------- */
+  (function () {
+    var s = $("plateau"), W = 480, H = 280, L = 30, B = 40, T = 20, R = 20;
+    var x = function (t) { return L + t * (W - L - R); }, y = function (v) { return H - B - v * (H - T - B); };
+    var exp = [], lin = [];
+    for (var i = 0; i <= 60; i++) { var t = i / 60; exp.push([x(t), y(Math.pow(t, 3.2) * 1.05)]); lin.push([x(t), y(t * 0.62)]); }
+    // Tal schattieren: wo exp unter lin
+    var cross = 0; for (i = 0; i <= 60; i++) { var tt = i / 60; if (Math.pow(tt, 3.2) * 1.05 >= tt * 0.62 && tt > 0.05) { cross = tt; break; } }
+    var val = []; for (i = 0; i <= 60 * cross; i++) { var t2 = i / 60; val.push([x(t2), y(t2 * 0.62)]); }
+    for (i = Math.floor(60 * cross); i >= 0; i--) { var t3 = i / 60; val.push([x(t3), y(Math.pow(t3, 3.2) * 1.05)]); }
+    s.append(el("path", { d: path(val) + "Z", fill: "var(--warn)", "fill-opacity": ".14" }));
+    s.append(el("line", { x1: L, y1: y(0), x2: W - R, y2: y(0), stroke: "var(--muted)" }));
+    s.append(el("line", { x1: L, y1: y(0), x2: L, y2: T - 6, stroke: "var(--muted)" }));
+    s.append(el("path", { d: path(lin), fill: "none", stroke: "var(--muted)", "stroke-width": 2.5, "stroke-dasharray": "7 5" }));
+    s.append(el("path", { d: path(exp), fill: "none", stroke: "var(--ok)", "stroke-width": 3.5, "stroke-linecap": "round" }));
+    s.append(el("text", { x: x(0.66), y: y(0.62 * 0.66) + 22, class: "lbl", style: "fill:var(--muted)" }, "Was du erwartest"));
+    s.append(el("text", { x: x(0.80), y: y(Math.pow(0.80, 3.2) * 1.05) - 10, "text-anchor": "end", class: "lbl", style: "fill:var(--ok)" }, "Was wirklich passiert"));
+    s.append(el("text", { x: x(cross * 0.55), y: y(0) + 26, "text-anchor": "middle", class: "lbl", style: "fill:var(--warn)" }, "Tal der Enttäuschung"));
+    s.append(el("text", { x: x(1), y: y(0) + 26, "text-anchor": "end" }, "Zeit →"));
+    s.append(el("text", { x: L + 6, y: T + 4 }, "Ergebnis"));
+  })();
+
+  /* ---------- Ringe ---------- */
+  var RING = { in: { steps: ["Identität: Wer will ich sein? „Ich bin jemand, der sich um seine Gesundheit kümmert.“", "Prozess: Was tut so ein Mensch? Täglich 15 Minuten bewegen.", "Ergebnis: Fitness und Gewicht folgen von selbst."], take: "Die Gewohnheit wird Teil von dir – deshalb bleibt sie." },
+    out: { steps: ["Ergebnis: „Ich will 10 kg abnehmen.“", "Prozess: Ein strenger Trainingsplan.", "Identität: Bleibt unverändert – nach dem Ziel kommt oft der Rückfall."], take: "Ziele sind gut für die Richtung, aber Systeme bringen dich voran." } };
+  function drawRings(dir) {
+    var s = $("rings"); s.replaceChildren();
+    var c = 150, rs = [130, 88, 46], names = ["Ergebnis", "Prozess", "Identität"], fills = ["var(--blue-soft)", "var(--ok-soft)", "var(--gold-soft)"], strokes = ["var(--blue)", "var(--ok)", "var(--gold)"];
+    rs.forEach(function (r, i) { s.append(el("circle", { cx: c, cy: c, r: r, fill: fills[i], stroke: strokes[i], "stroke-width": 2 })); });
+    names.forEach(function (n, i) { s.append(el("text", { x: c, y: i === 2 ? c + 5 : c - rs[i] + 24, "text-anchor": "middle", class: "lbl", style: "fill:" + strokes[i] }, n)); });
+    var g = el("g", {});
+    var defs = el("defs", {}), mk = el("marker", { id: "ar", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+    mk.append(el("path", { d: "M0 0L10 5L0 10z", fill: "var(--ink)" })); defs.append(mk); s.append(defs);
+    g.append(el("line", { x1: dir === "in" ? c + 20 : c + 118, y1: dir === "in" ? c + 20 : c + 118, x2: dir === "in" ? c + 112 : c + 26, y2: dir === "in" ? c + 112 : c + 26, stroke: "var(--ink)", "stroke-width": 2.5, "marker-end": "url(#ar)" }));
+    s.append(g);
+    $("ringSteps").innerHTML = RING[dir].steps.map(function (t) { return "<li><span>" + t + "</span></li>"; }).join("");
+    $("ringTake").textContent = RING[dir].take;
+    document.querySelectorAll("[data-dir]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.dir === dir)); });
+  }
+  document.querySelectorAll("[data-dir]").forEach(function (b) { b.addEventListener("click", function () { drawRings(b.dataset.dir); }); });
+
+  /* ---------- Schleife ---------- */
+  var LOOPS = {
+    "Handy": ["Das Handy brummt.", "Du willst wissen, was drinsteht.", "Du greifst zum Handy und liest.", "Neugier gestillt – Brummen und Griff zum Handy gehören jetzt zusammen."],
+    "Morgen": ["Du wachst auf.", "Du willst wach werden.", "Du trinkst einen Kaffee.", "Du bist munter – Aufwachen heißt jetzt Kaffee."],
+    "Heimweg": ["Es duftet nach Bäckerei.", "Du bekommst Lust auf Gebäck.", "Du kaufst ein Gipfeli.", "Lust gestillt – der Heimweg ist mit Gebäck verknüpft."],
+    "Stress": ["Das Projekt hängt fest.", "Du willst den Frust loswerden.", "Du öffnest Social Media.", "Kurz entspannt – Frust wird mit Scrollen verknüpft."]
+  };
+  var LAWNAMES = ["1. Gesetz: offensichtlich machen", "2. Gesetz: attraktiv machen", "3. Gesetz: einfach machen", "4. Gesetz: befriedigend machen"];
+  function drawLoop(k) {
+    var names = ["Auslöser", "Verlangen", "Reaktion", "Belohnung"];
+    $("loop").innerHTML = LOOPS[k].map(function (t, i) {
+      return '<div class="st ' + (i < 2 ? "p" : "s") + '"><span class="n">' + (i + 1) + ". " + names[i] + '</span><span class="t">' + t + '</span><span class="law">' + LAWNAMES[i] + "</span></div>";
+    }).join("");
+    $("loopEx").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.k === k)); });
+  }
+  $("loopEx").innerHTML = Object.keys(LOOPS).map(function (k) { return '<button type="button" data-k="' + k + '">' + k + "</button>"; }).join("");
+  $("loopEx").addEventListener("click", function (e) { var b = e.target.closest("button"); if (b) drawLoop(b.dataset.k); });
+
+  /* ---------- Gesetze ---------- */
+  var LAWS = [
+    { c: "var(--blue)", build: ["offensichtlich", ["Aktuelle Gewohnheiten aufschreiben, um sie zu bemerken", "Umsetzungsabsicht: Zeit + Ort + Verhalten", "Gewohnheiten stapeln: „Nach X mache ich Y“", "Umfeld so gestalten, dass der Auslöser ins Auge fällt"], "Beispiel: Laufschuhe abends neben die Tür stellen."],
+      break: ["unsichtbar", ["Auslöser aus dem Umfeld entfernen", "Versuchungen aus dem Blickfeld räumen"], "Beispiel: Handy beim Arbeiten in ein anderes Zimmer."] },
+    { c: "var(--ok)", build: ["attraktiv", ["Kombinieren: Etwas, das du tun willst, mit etwas, das du tun musst", "Dich Menschen anschließen, für die das Verhalten normal ist", "Ein kleines Ritual vor der schwierigen Gewohnheit"], "Beispiel: Lieblingspodcast nur beim Bügeln."],
+      break: ["unattraktiv", ["Die Sicht ändern: die Vorteile des Verzichts betonen", "Kosten sichtbar machen"], "Beispiel: „Ich gewinne eine Stunde Abend“ statt „Ich darf nicht scrollen“."] },
+    { c: "var(--gold)", build: ["einfach", ["Weniger Schritte, weniger Reibung", "Umfeld für später vorbereiten", "Zwei-Minuten-Regel", "Automatisieren und einmalig investieren"], "Beispiel: Sportsachen am Vorabend bereitlegen."],
+      break: ["schwierig", ["Mehr Schritte einbauen, mehr Reibung", "Selbstbindung: Optionen im Voraus beschränken"], "Beispiel: Spiele-App löschen statt nur zu verstecken."] },
+    { c: "var(--warn)", build: ["befriedigend", ["Sofortige kleine Belohnung danach", "Gewohnheits-Tracker: Kette sichtbar halten", "Nie zweimal hintereinander aussetzen"], "Beispiel: Für jedes Training einen Batzen ins Ferienkässeli."],
+      break: ["unbefriedigend", ["Einen Rechenschaftspartner suchen", "Eine Abmachung mit sichtbaren Folgen"], "Beispiel: Wer zu spät kommt, zahlt den Kaffee."] }
+  ];
+  function drawLaws(mode) {
+    $("laws").innerHTML = LAWS.map(function (l, i) {
+      var d = l[mode];
+      return '<div class="law" style="--c:' + l.c + '"><span class="no">' + (mode === "build" ? (i + 1) + ". Gesetz" : "Umkehrung " + (i + 1)) + '</span><h3>Mach es ' + d[0] + '</h3><ul>' +
+        d[1].map(function (t) { return "<li>" + t + "</li>"; }).join("") + '</ul><div class="tool">' + d[2] + "</div></div>";
+    }).join("");
+    document.querySelectorAll("[data-mode]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.mode === mode)); });
+  }
+  document.querySelectorAll("[data-mode]").forEach(function (b) { b.addEventListener("click", function () { drawLaws(b.dataset.mode); }); });
+
+  /* ---------- Werkzeug ---------- */
+  document.querySelectorAll("[data-copy]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var k = b.dataset.copy;
+      var t = k === "ii" ? "Ich werde um " + $("ii1").value + " in " + $("ii2").value + " " + $("ii3").value + "."
+        : "Nach " + $("hs1").value + " werde ich " + $("hs2").value + ".";
+      var out = document.querySelector('[data-copied="' + k + '"]');
+      var done = function () { out.textContent = "Kopiert: „" + t + "“"; };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function () { out.textContent = t; });
+      else out.textContent = t;
+    });
+  });
+
+  /* ---------- Zwei-Minuten-Leiter ---------- */
+  var LADDERS = {
+    "Laufen": ["Laufschuhe anziehen", "10 Minuten spazieren", "10 000 Schritte", "5 km laufen", "Marathon"],
+    "Schreiben": ["Einen Satz schreiben", "Einen Absatz schreiben", "1000 Wörter", "Einen Artikel", "Ein Buch"],
+    "Lernen": ["Unterlagen aufschlagen", "10 Minuten lernen", "Drei Stunden lernen", "Prüfung mit Bestnote", "Abschluss"],
+    "Lesen": ["Eine Seite lesen", "10 Seiten lesen", "Ein Kapitel", "Ein Buch pro Monat", "50 Bücher im Jahr"]
+  };
+  var LV = ["sehr einfach", "einfach", "mittel", "schwierig", "sehr schwierig"];
+  function drawLadder(k) {
+    $("ladder").innerHTML = LADDERS[k].map(function (t, i) {
+      return '<div class="rung' + (i === 0 ? " start" : "") + '" style="--h:' + (70 + i * 34) + 'px"><span class="lv">' + LV[i] + (i === 0 ? " · hier starten" : "") + '</span><span class="d">' + t + "</span></div>";
+    }).join("");
+    $("ladderEx").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.k === k)); });
+  }
+  $("ladderEx").innerHTML = Object.keys(LADDERS).map(function (k) { return '<button type="button" data-k="' + k + '">' + k + "</button>"; }).join("");
+  $("ladderEx").addEventListener("click", function (e) { var b = e.target.closest("button"); if (b) drawLadder(b.dataset.k); });
+
+  /* ---------- Gewohnheitsgrenze ---------- */
+  (function () {
+    var s = $("habitline"), W = 480, H = 270, L = 30, B = 40, T = 20, R = 20;
+    var x = function (t) { return L + t * (W - L - R); }, y = function (v) { return H - B - v * (H - T - B); };
+    var f = function (t) { return 1 - Math.exp(-3.2 * t); };
+    var pts = []; for (var i = 0; i <= 60; i++) pts.push([x(i / 60), y(f(i / 60) * 0.95)]);
+    var lim = 0.72;
+    s.append(el("line", { x1: L, y1: y(0), x2: W - R, y2: y(0), stroke: "var(--muted)" }));
+    s.append(el("line", { x1: L, y1: y(0), x2: L, y2: T - 6, stroke: "var(--muted)" }));
+    s.append(el("rect", { x: L, y: T - 6, width: W - L - R, height: y(lim) - T + 6, fill: "var(--ok)", "fill-opacity": ".07" }));
+    s.append(el("line", { x1: L, y1: y(lim), x2: W - R, y2: y(lim), stroke: "var(--gold)", "stroke-width": 2, "stroke-dasharray": "7 5" }));
+    s.append(el("text", { x: W - R, y: y(lim) - 8, "text-anchor": "end", class: "lbl", style: "fill:var(--gold)" }, "Gewohnheitsgrenze"));
+    s.append(el("path", { d: path(pts), fill: "none", stroke: "var(--ink)", "stroke-width": 3, "stroke-linecap": "round" }));
+    [["A", 0.06], ["B", 0.25], ["C", 0.55]].forEach(function (p) {
+      var cx = x(p[1]), cy = y(f(p[1]) * 0.95);
+      s.append(el("circle", { cx: cx, cy: cy, r: 6, fill: p[0] === "C" ? "var(--ok)" : "var(--sheet)", stroke: "var(--ink)", "stroke-width": 2 }));
+      s.append(el("text", { x: cx + 10, y: cy + 16, class: "lbl" }, p[0]));
+    });
+    s.append(el("text", { x: x(1), y: y(0) + 26, "text-anchor": "end" }, "Wiederholungen →"));
+    s.append(el("text", { x: L + 6, y: T + 4 }, "Automatik"));
+  })();
+
+  /* ---------- Goldlöckchen ---------- */
+  (function () {
+    var s = $("goldi"), W = 480, H = 260, L = 30, B = 40, T = 20, R = 20;
+    var x = function (t) { return L + t * (W - L - R); }, y = function (v) { return H - B - v * (H - T - B); };
+    var f = function (t) { return Math.exp(-Math.pow((t - 0.55) / 0.2, 2)); };
+    var pts = []; for (var i = 0; i <= 80; i++) pts.push([x(i / 80), y(f(i / 80) * 0.95)]);
+    s.append(el("rect", { x: x(0.47), y: T - 6, width: x(0.63) - x(0.47), height: y(0) - T + 6, fill: "var(--gold)", "fill-opacity": ".16" }));
+    s.append(el("line", { x1: L, y1: y(0), x2: W - R, y2: y(0), stroke: "var(--muted)" }));
+    s.append(el("line", { x1: L, y1: y(0), x2: L, y2: T - 6, stroke: "var(--muted)" }));
+    s.append(el("path", { d: path(pts), fill: "none", stroke: "var(--ink)", "stroke-width": 3, "stroke-linecap": "round" }));
+    s.append(el("text", { x: x(0.55), y: T + 6, "text-anchor": "middle", class: "lbl", style: "fill:var(--gold)" }, "gerade noch machbar"));
+    s.append(el("text", { x: x(0.1), y: y(0.12) - 6, "text-anchor": "middle", class: "lbl", style: "fill:var(--muted)" }, "Langeweile"));
+    s.append(el("text", { x: x(0.92), y: y(0.12) - 6, "text-anchor": "middle", class: "lbl", style: "fill:var(--warn)" }, "Überforderung"));
+    s.append(el("text", { x: x(1), y: y(0) + 26, "text-anchor": "end" }, "Schwierigkeit →"));
+    s.append(el("text", { x: L + 6, y: T + 4 }, "Motivation"));
+  })();
+
+  /* ---------- Kette ---------- */
+  $("chain").innerHTML = Array.from({ length: 30 }, function (_, i) {
+    return i === 8 || i === 21 ? '<i class="miss" title="Tag ' + (i + 1) + ': ausgesetzt"></i>' : '<i class="' + (i === 9 || i === 22 ? "back" : "") + '" title="Tag ' + (i + 1) + '"></i>';
+  }).join("");
+
+  drawCurve(); drawRings("in"); drawLoop("Handy"); drawLaws("build"); drawLadder("Laufen");
+})();
+</script>
+</body>
+</html>
